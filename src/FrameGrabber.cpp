@@ -142,23 +142,33 @@ int write_png_file(const char* file_name, std::vector<uint16_t>& frame )
 ///  if (setjmp(png_jmpbuf(png_ptr)))
 //    abort_("[write_png_file] Error during writing bytes");
 
+  static png_bytep s_row_ptrs[60];
+  static png_byte s_data[60][160];
 
+  static bool s_onceOnlyInit = true;
+  if (s_onceOnlyInit)
+    {
+      s_onceOnlyInit = false;
+      for (int i = 0; i < 60; i++){
+	s_row_ptrs[i] = &s_data[i][0];
+      }
   
+    }  
+
+  // swap bytes
   int row = 0;
   for (row = 0; row < 60; row++)
     {
-      png_byte data[160];
-      for (int i = 0; i < 80; ++i)
+      for (int col = 0; col < 80; ++col)
 	{
-	  uint16_t word = frame[row*80+i];
-	  data[2*i] = word >> 8;
-	  data[2*i+1] = word & 0xff;
+	  uint16_t word = frame[row*80+col];
+	  s_data[row][2*col] = word >> 8;
+	  s_data[row][2*col+1] = word & 0xff;
 	  
 	}
-      png_write_row(png_ptr, data);
       
     }
-  //  png_write_image(png_ptr, row_pointers);
+  png_write_image(png_ptr, s_row_ptrs);
 
 
   /* end write */
