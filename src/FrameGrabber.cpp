@@ -38,49 +38,123 @@
 #include <iostream>
 #include <unistd.h>
 #include <chrono>
+#include <boost/filesystem.hpp>
+#include <sstream>
+#include <functional>
+
+#include "ros/ros.h"
+#include "std_msgs/String.h"
+#include "std_msgs/UInt32.h"
+
+int write_png_file(const char* file_name, std::vector<uint16_t>& frame );
+
+
+struct truncated_minus: std::binary_function<uint16_t, uint16_t, uint16_t>
+{
+  uint16_t operator()(uint16_t a, uint16_t b) const
+  {
+    if (b > a)
+      {
+	return 0;
+      }
+    else
+      {
+	return a - b;
+      }
+  }
+};
+
+void SaveImage(const std_msgs::UInt32::ConstPtr& msg, LeptonCamera& cam)
+{
+
+  unsigned int imageId = msg->data;
+
+  bool saveToFile = true;
+  if (imageId == 0)
+    {
+      saveToFile = false;
+    }
+ 
+  
+  // folder number
+  unsigned int majorId = imageId >> 16;
+
+  // file number
+  unsigned int minorId = imageId & 0xffff;
+
+  // Define frame
+  std::vector<uint16_t> frame(cam.width() * cam.height());
+  
+  static std::vector<uint16_t> s_flatfield(cam.width() * cam.height());
+
+    
+  // Stream frames
+  int frame_nb{0};
+
+  // Frame request
+  if (cam.hasFrame()) {
+    cam.getFrameU16(frame);
+    ++frame_nb;
+  }
+  
+  if (saveToFile)
+  {
+    std::ostringstream ossDir;
+    std::ostringstream ossFilename;
+
+    ossDir << "/tmp/flircam/" << majorId;
+    ossFilename << "/tmp/flircam/" << majorId << '/' << minorId;
+
+    std::string dirname = ossDir.str(); 
+    std::string fname = ossFilename.str(); 
+
+    std::cout << "dirname=" << dirname << std::endl;
+    std::cout << "fname=" << fname << std::endl;
+
+    boost::filesystem::create_directories(dirname.c_str());
+
+    // subtract flat field
+    std::transform(frame.begin(), frame.end(), s_flatfield.begin(), frame.begin(), truncated_minus());
+    
+    write_png_file(fname.c_str(),frame);
+  }
+  else
+    {
+      auto iterMin = std::min_element(frame.begin(), frame.end());
+      uint16_t minValue = *iterMin;
+      
+      for (auto& item: frame)
+	{
+	  item -= minValue;
+	}
+      
+      std::cout << "save flat field minValue=" << minValue <<  std::endl;
+      // Save as flat field
+      s_flatfield = frame;
+    }
+}
+
 
 /**
  * @brief Sample app for streaming IR videos using LePi parallel interface
  */
-int write_png_file(const char* file_name, std::vector<uint16_t>& frame );
-int main()
-{    
+int main(int argc, char** argv)
+{
     // Open camera connection
     LeptonCamera cam;
-    //        cam.sendCommand(AGC_EN, nullptr);
-    //        sleep(1);
-	    cam.sendCommand(REBOOT, nullptr);
-        sleep(1);
-	//	            cam.sendCommand(FFC, nullptr);
-        sleep(1);
+    cam.sendCommand(REBOOT, nullptr);
+    //    sleep(1);
+    //    cam.sendCommand(FFC, nullptr);
+    sleep(1);
     cam.start();
     
-    // Define frame
-    std::vector<uint16_t> frame(cam.width() * cam.height());
+    ros::init(argc, argv, "FrameGrabber");
+    ros::NodeHandle n;
+
+    auto SaveImageBoundFunction = boost::bind(SaveImage,_1, std::ref(cam));
     
-    // Stream frames
-    int frame_nb{0};
-
-
-    while (true) {
-
-
-	char key;
-	std::cin >> key;
-	if (key == 'q'){
-	  break;
-	}
-	if (key == 'f'){
-	  
-	  // Frame request
-	  if (cam.hasFrame()) {
-	    cam.getFrameU16(frame);
-	    ++frame_nb;
-
-	    write_png_file("frame",frame);
-	  }
-	}
-    }
+    ros::Subscriber sub = n.subscribe<std_msgs::UInt32>("save_image", 10, SaveImageBoundFunction);
+    ros::spin();
 
     // Release sensor
     cam.stop();
