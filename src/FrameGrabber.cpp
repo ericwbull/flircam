@@ -103,7 +103,7 @@ void SaveImage(const std_msgs::UInt32::ConstPtr& msg, LeptonCamera& cam)
     std::ostringstream ossFilename;
 
     ossDir << "/tmp/flircam/" << majorId;
-    ossFilename << "/tmp/flircam/" << majorId << '/' << minorId;
+    ossFilename << "/tmp/flircam/" << majorId << '/' << minorId << ".png";
 
     std::string dirname = ossDir.str(); 
     std::string fname = ossFilename.str(); 

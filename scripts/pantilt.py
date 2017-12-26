@@ -4,7 +4,7 @@ import rospy
 import pigpio
 
 from std_msgs.msg import String
-from beginner_tutorials.msg import PanTiltPos
+from flircam.msg import PanTiltPos
 
 def CommandReceived(data, controller):
     print "horizontal={0} vertical={1}".format(data.horizontalAngle,data.verticalAngle)
