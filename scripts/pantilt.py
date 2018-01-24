@@ -33,8 +33,8 @@ class PanTiltController:
         self.pi.set_servo_pulsewidth(18, servoPos)
         
     def SetVertical(self,angle):
-        # vertial: 1500 is -90, 600 is 0 degrees
-        servoPos = -10*angle+600
+        # vertical: 1500 is -90, 750 is 0 degrees
+        servoPos = -10*angle+750
         print "vertical servo={}".format(servoPos)
         # ToDO: clip servoPos to limits
         self.pi.set_servo_pulsewidth(13, servoPos)
