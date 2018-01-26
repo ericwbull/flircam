@@ -136,6 +136,7 @@ ${catkin_INCLUDE_DIRS}
 ## With catkin_make all packages are built within a single CMake context
 ## The recommended prefix ensures that target names across packages don't collide
 add_executable(FrameGrabber src/FrameGrabber.cpp)
+add_executable(ImageProc src/ImageProc.cpp)
 
 ## Rename C++ executable without prefix
 ## The above recommended prefix causes long target names, the following renames the
@@ -156,6 +157,12 @@ target_link_libraries(FrameGrabber
   png
   bcm2835
   pthread
+)
+
+target_link_libraries(ImageProc
+  ${catkin_LIBRARIES}
+  boost_filesystem
+  png
 )
 
 #############

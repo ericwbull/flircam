@@ -41,12 +41,13 @@
 #include <boost/filesystem.hpp>
 #include <sstream>
 #include <functional>
-
+#include <fstream>
 #include "ros/ros.h"
 #include "std_msgs/String.h"
 #include "std_msgs/UInt32.h"
 
 int write_png_file(const char* file_name, std::vector<uint16_t>& frame );
+int write_image_data_file(const char* file_name, const std::vector<uint16_t>& frame );
 
 
 struct truncated_minus: std::binary_function<uint16_t, uint16_t, uint16_t>
@@ -64,9 +65,52 @@ struct truncated_minus: std::binary_function<uint16_t, uint16_t, uint16_t>
   }
 };
 
-void SaveImage(const std_msgs::UInt32::ConstPtr& msg, LeptonCamera& cam)
+struct stretch
+{
+  uint16_t min;
+  uint16_t scalar;
+  
+  uint16_t operator()(uint16_t& pixel) const
+  {
+    pixel = (pixel - min) * scalar;
+  }
+};
+
+struct CamPub
+{
+  LeptonCamera cam;
+  ros::Publisher pub;
+};
+
+std::string GetImageFileName(unsigned int imageId)
+{
+  // folder number
+  unsigned int majorId = imageId >> 16;
+
+  // file number
+  unsigned int minorId = imageId & 0xffff;
+
+  std::ostringstream ossDir;
+  std::ostringstream ossFilename;
+
+  ossDir << "/tmp/flircam/" << majorId;
+  ossFilename << "/tmp/flircam/" << majorId << '/' << minorId;
+
+  std::string dirname = ossDir.str(); 
+  std::string fname = ossFilename.str(); 
+
+  std::cout << "dirname=" << dirname << std::endl;
+  std::cout << "fname=" << fname << std::endl;
+
+  boost::filesystem::create_directories(dirname.c_str());
+
+  return fname;
+}
+
+void SaveImage(const std_msgs::UInt32::ConstPtr& msg, CamPub& camPub)
 {
 
+  LeptonCamera& cam = camPub.cam;
   unsigned int imageId = msg->data;
 
   bool saveToFile = true;
@@ -75,12 +119,6 @@ void SaveImage(const std_msgs::UInt32::ConstPtr& msg, LeptonCamera& cam)
       saveToFile = false;
     }
  
-  
-  // folder number
-  unsigned int majorId = imageId >> 16;
-
-  // file number
-  unsigned int minorId = imageId & 0xffff;
 
   // Define frame
   std::vector<uint16_t> frame(cam.width() * cam.height());
@@ -91,32 +129,45 @@ void SaveImage(const std_msgs::UInt32::ConstPtr& msg, LeptonCamera& cam)
   // Stream frames
   int frame_nb{0};
 
-  // Frame request
+  // Frame request  
   if (cam.hasFrame()) {
     cam.getFrameU16(frame);
     ++frame_nb;
   }
+  else
+  {
+    std::cout << "no frame" << std::endl;
+    return;
+  }
+
+  
   
   if (saveToFile)
   {
-    std::ostringstream ossDir;
-    std::ostringstream ossFilename;
+    std::string fname = GetImageFileName(imageId);
 
-    ossDir << "/tmp/flircam/" << majorId;
-    ossFilename << "/tmp/flircam/" << majorId << '/' << minorId << ".png";
-
-    std::string dirname = ossDir.str(); 
-    std::string fname = ossFilename.str(); 
-
-    std::cout << "dirname=" << dirname << std::endl;
-    std::cout << "fname=" << fname << std::endl;
-
-    boost::filesystem::create_directories(dirname.c_str());
 
     // subtract flat field
     std::transform(frame.begin(), frame.end(), s_flatfield.begin(), frame.begin(), truncated_minus());
-    
-    write_png_file(fname.c_str(),frame);
+
+    uint16_t minValue = 0;
+    uint16_t maxValue = 0;
+
+    auto iterPairMinMax = std::minmax_element(frame.begin(), frame.end());
+    minValue = *iterPairMinMax.first;
+    maxValue = *iterPairMinMax.second;
+
+    stretch s;
+    s.min = minValue;
+    s.scalar = 65535 / (maxValue - minValue);
+    std::for_each(frame.begin(), frame.end(), s); 
+    //    write_png_file(fname.c_str(),frame);
+    if (0 == write_image_data_file(fname.c_str(),frame))
+    {
+        std_msgs::UInt32 pubMsg;
+        pubMsg.data = imageId;
+        camPub.pub.publish(pubMsg);
+    }
   }
   else
     {
@@ -140,30 +191,52 @@ void SaveImage(const std_msgs::UInt32::ConstPtr& msg, LeptonCamera& cam)
  */
 int main(int argc, char** argv)
 {
+  std::cout << "FrameGrabber hello"<< std::endl;
     // Open camera connection
-    LeptonCamera cam;
-    cam.sendCommand(REBOOT, nullptr);
+    CamPub camPub;
+    camPub.cam.sendCommand(REBOOT, nullptr);
     //    sleep(1);
     //    cam.sendCommand(FFC, nullptr);
     sleep(1);
-    cam.start();
+        camPub.cam.start();
     
     ros::init(argc, argv, "FrameGrabber");
     ros::NodeHandle n;
 
-    auto SaveImageBoundFunction = boost::bind(SaveImage,_1, std::ref(cam));
+    auto SaveImageBoundFunction = boost::bind(SaveImage,_1, std::ref(camPub));
     
+    camPub.pub = n.advertise<std_msgs::UInt32>("image_done", 10);
     ros::Subscriber sub = n.subscribe<std_msgs::UInt32>("save_image", 10, SaveImageBoundFunction);
+
+    std::cout << "start ros spin" << std::endl;
     ros::spin();
 
+   
     // Release sensor
-    cam.stop();
+        camPub.cam.stop();
 
     
     return EXIT_SUCCESS;
 }
 
 
+int write_image_data_file(const char* file_name, const std::vector<uint16_t>& frame )
+{
+  std::ofstream ofs(file_name, std::ios::binary);
+  
+  if (ofs.fail())
+    {
+      std:: cerr << "File open failed '" << file_name << "'" << std::endl;
+      return -1;
+    }
+
+  int size = frame.size() * sizeof(uint16_t);
+  //  ofs.write(&size, sizeof(int));
+  // For the current application the size is always 80 x 60 pixels
+  ofs.write(reinterpret_cast<const char*>(&frame[0]), size);
+
+  return 0;
+}
 
 int write_png_file(const char* file_name, std::vector<uint16_t>& frame )
 {
