@@ -38,7 +38,6 @@
 #include <iostream>
 #include <unistd.h>
 #include <chrono>
-#include <boost/filesystem.hpp>
 #include <sstream>
 #include <functional>
 #include <fstream>
@@ -46,142 +45,90 @@
 #include "std_msgs/String.h"
 #include "std_msgs/UInt32.h"
 
-int write_png_file(const char* file_name, std::vector<uint16_t>& frame );
-int write_image_data_file(const char* file_name, const std::vector<uint16_t>& frame );
-
-
-struct truncated_minus: std::binary_function<uint16_t, uint16_t, uint16_t>
-{
-  uint16_t operator()(uint16_t a, uint16_t b) const
-  {
-    if (b > a)
-      {
-	return 0;
-      }
-    else
-      {
-	return a - b;
-      }
-  }
-};
-
-struct stretch
-{
-  uint16_t min;
-  uint16_t scalar;
-  
-  uint16_t operator()(uint16_t& pixel) const
-  {
-    pixel = (pixel - min) * scalar;
-  }
-};
+#include "ImageUtil.h"
 
 struct CamPub
 {
-  LeptonCamera cam;
-  ros::Publisher pub;
+    LeptonCamera cam;
+    ros::Publisher pub;
 };
 
-std::string GetImageFileName(unsigned int imageId)
-{
-  // folder number
-  unsigned int majorId = imageId >> 16;
-
-  // file number
-  unsigned int minorId = imageId & 0xffff;
-
-  std::ostringstream ossDir;
-  std::ostringstream ossFilename;
-
-  ossDir << "/tmp/flircam/" << majorId;
-  ossFilename << "/tmp/flircam/" << majorId << '/' << minorId;
-
-  std::string dirname = ossDir.str(); 
-  std::string fname = ossFilename.str(); 
-
-  std::cout << "dirname=" << dirname << std::endl;
-  std::cout << "fname=" << fname << std::endl;
-
-  boost::filesystem::create_directories(dirname.c_str());
-
-  return fname;
-}
 
 void SaveImage(const std_msgs::UInt32::ConstPtr& msg, CamPub& camPub)
 {
 
-  LeptonCamera& cam = camPub.cam;
-  unsigned int imageId = msg->data;
+    LeptonCamera& cam = camPub.cam;
+    unsigned int imageId = msg->data;
 
-  bool saveToFile = true;
-  if (imageId == 0)
+    bool saveToFile = true;
+    if (imageId == 0)
     {
-      saveToFile = false;
+        saveToFile = false;
     }
- 
-
-  // Define frame
-  std::vector<uint16_t> frame(cam.width() * cam.height());
-  
-  static std::vector<uint16_t> s_flatfield(cam.width() * cam.height());
-
-    
-  // Stream frames
-  int frame_nb{0};
-
-  // Frame request  
-  if (cam.hasFrame()) {
-    cam.getFrameU16(frame);
-    ++frame_nb;
-  }
-  else
-  {
-    std::cout << "no frame" << std::endl;
-    return;
-  }
-
-  
-  
-  if (saveToFile)
-  {
-    std::string fname = GetImageFileName(imageId);
 
 
-    // subtract flat field
-    std::transform(frame.begin(), frame.end(), s_flatfield.begin(), frame.begin(), truncated_minus());
+    // Define frame
+    std::vector<uint16_t> frame(cam.width() * cam.height());
 
-    uint16_t minValue = 0;
-    uint16_t maxValue = 0;
+    static std::vector<uint16_t> s_flatfield(cam.width() * cam.height());
 
-    auto iterPairMinMax = std::minmax_element(frame.begin(), frame.end());
-    minValue = *iterPairMinMax.first;
-    maxValue = *iterPairMinMax.second;
 
-    stretch s;
-    s.min = minValue;
-    s.scalar = 65535 / (maxValue - minValue);
-    std::for_each(frame.begin(), frame.end(), s); 
-    //    write_png_file(fname.c_str(),frame);
-    if (0 == write_image_data_file(fname.c_str(),frame))
-    {
-        std_msgs::UInt32 pubMsg;
-        pubMsg.data = imageId;
-        camPub.pub.publish(pubMsg);
+    // Stream frames
+    int frame_nb{0};
+
+    // Frame request
+    if (cam.hasFrame()) {
+        cam.getFrameU16(frame);
+        ++frame_nb;
     }
-  }
-  else
+    else
     {
-      auto iterMin = std::min_element(frame.begin(), frame.end());
-      uint16_t minValue = *iterMin;
-      
-      for (auto& item: frame)
-	{
-	  item -= minValue;
-	}
-      
-      std::cout << "save flat field minValue=" << minValue <<  std::endl;
-      // Save as flat field
-      s_flatfield = frame;
+        std::cout << "no frame" << std::endl;
+        return;
+    }
+
+
+
+    if (saveToFile)
+    {
+        // subtract flat field
+        std::transform(frame.begin(), frame.end(), s_flatfield.begin(), frame.begin(), ImageUtil::truncated_minus());
+
+        uint16_t minValue = 0;
+        uint16_t maxValue = 0;
+
+        auto iterPairMinMax = std::minmax_element(frame.begin(), frame.end());
+        minValue = *iterPairMinMax.first;
+        maxValue = *iterPairMinMax.second;
+
+        // Output stretched image for inspection
+        std::vector<uint16_t> stretched = frame;
+        ImageUtil::stretch s;
+        s.min = minValue;
+        s.scalar = 65535 / (maxValue - minValue);
+        std::for_each(stretched.begin(), stretched.end(), s);
+        ImageUtil::WritePGM(imageId, stretched, "stretched");
+
+        if (ImageUtil::WriteImage(imageId,frame))
+        {
+            std_msgs::UInt32 pubMsg;
+            pubMsg.data = imageId;
+            camPub.pub.publish(pubMsg);
+        }
+    }
+    else
+    {
+        auto iterMin = std::min_element(frame.begin(), frame.end());
+        uint16_t minValue = *iterMin;
+
+        for (auto& item: frame)
+        {
+            item -= minValue;
+        }
+
+        std::cout << "save flat field minValue=" << minValue <<  std::endl;
+        // Save as flat field
+        s_flatfield = frame;
     }
 }
 
@@ -191,143 +138,32 @@ void SaveImage(const std_msgs::UInt32::ConstPtr& msg, CamPub& camPub)
  */
 int main(int argc, char** argv)
 {
-  std::cout << "FrameGrabber hello"<< std::endl;
+    std::cout << "FrameGrabber hello"<< std::endl;
     // Open camera connection
     CamPub camPub;
     camPub.cam.sendCommand(REBOOT, nullptr);
     //    sleep(1);
     //    cam.sendCommand(FFC, nullptr);
     sleep(1);
-        camPub.cam.start();
-    
+    camPub.cam.start();
+
     ros::init(argc, argv, "FrameGrabber");
     ros::NodeHandle n;
 
     auto SaveImageBoundFunction = boost::bind(SaveImage,_1, std::ref(camPub));
-    
+
     camPub.pub = n.advertise<std_msgs::UInt32>("image_done", 10);
     ros::Subscriber sub = n.subscribe<std_msgs::UInt32>("save_image", 10, SaveImageBoundFunction);
 
     std::cout << "start ros spin" << std::endl;
     ros::spin();
 
-   
-    // Release sensor
-        camPub.cam.stop();
 
-    
+    // Release sensor
+    camPub.cam.stop();
+
+
     return EXIT_SUCCESS;
 }
 
 
-int write_image_data_file(const char* file_name, const std::vector<uint16_t>& frame )
-{
-  std::ofstream ofs(file_name, std::ios::binary);
-  
-  if (ofs.fail())
-    {
-      std:: cerr << "File open failed '" << file_name << "'" << std::endl;
-      return -1;
-    }
-
-  int size = frame.size() * sizeof(uint16_t);
-  //  ofs.write(&size, sizeof(int));
-  // For the current application the size is always 80 x 60 pixels
-  ofs.write(reinterpret_cast<const char*>(&frame[0]), size);
-
-  return 0;
-}
-
-int write_png_file(const char* file_name, std::vector<uint16_t>& frame )
-{
-  /* create file */
-  FILE *fp = fopen(file_name, "wb");
-  if (!fp)
-    {
-      std:: cerr << "File open failed '" << file_name << "'" << std::endl;
-      return -1;
-    }
-
-
-  /* initialize stuff */
-  png_structp png_ptr;
-  png_ptr = png_create_write_struct(PNG_LIBPNG_VER_STRING, NULL, NULL, NULL);
-
-  if (!png_ptr)
-    {
-      std::cerr << "[write_png_file] png_create_write_struct failed" << std::endl;
-      return -1;
-    }
-
-
-  png_infop info_ptr;
-  info_ptr = png_create_info_struct(png_ptr);
-  if (!info_ptr)
-    {
-      std::cerr << "[write_png_file] png_create_info_struct failed" << std::endl;
-      return -1;
-    }
-
-  //  if (setjmp(png_jmpbuf(png_ptr)))
-  //    abort_("[write_png_file] Error during init_io");
-
-  png_init_io(png_ptr, fp);
-
-
-  /* write header */
-  //  if (setjmp(png_jmpbuf(png_ptr)))
-  //    abort_("[write_png_file] Error during writing header");
-
-  png_set_IHDR(png_ptr, info_ptr, 80, 60,
-	       16, PNG_COLOR_TYPE_GRAY, PNG_INTERLACE_NONE,
-	       PNG_COMPRESSION_TYPE_DEFAULT, PNG_FILTER_TYPE_DEFAULT);
-
-  png_write_info(png_ptr, info_ptr);
-
-
-  /* write bytes */
-///  if (setjmp(png_jmpbuf(png_ptr)))
-//    abort_("[write_png_file] Error during writing bytes");
-
-  static png_bytep s_row_ptrs[60];
-  static png_byte s_data[60][160];
-
-  static bool s_onceOnlyInit = true;
-  if (s_onceOnlyInit)
-    {
-      s_onceOnlyInit = false;
-      for (int i = 0; i < 60; i++){
-	s_row_ptrs[i] = &s_data[i][0];
-      }
-  
-    }  
-
-  // swap bytes
-  int row = 0;
-  for (row = 0; row < 60; row++)
-    {
-      for (int col = 0; col < 80; ++col)
-	{
-	  uint16_t word = frame[row*80+col];
-	  s_data[row][2*col] = word >> 8;
-	  s_data[row][2*col+1] = word & 0xff;
-	  
-	}
-      
-    }
-  png_write_image(png_ptr, s_row_ptrs);
-
-
-  /* end write */
-  //  if (setjmp(png_jmpbuf(png_ptr)))
-  //    abort_("[write_png_file] Error during end of write");
-
-  png_write_end(png_ptr, NULL);
-
-  /* cleanup heap allocation */
-  //  for (y=0; y<height; y++)
-  //    free(row_pointers[y]);
-  //  free(row_pointers);
-
-  fclose(fp);
-}

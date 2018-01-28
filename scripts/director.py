@@ -17,10 +17,12 @@ class ImageCapture:
         
     def run(self):
         self.acquireFlatfield()
-        while False:
-            self.sweep()
-            time.sleep(60)
-            self.count += 1
+        while True:
+            #time.sleep(3)
+           raw_input("Press enter")
+           self.pointAndCapture(0,0,93)
+#           time.sleep(30)
+           self.count += 1
         
     def capture(self, frameNum):
         self.pubSaveImage.publish(frameNum)
@@ -63,5 +65,9 @@ class ImageCapture:
         
 
 if __name__ == '__main__':
-    controller = ImageCapture()
-    controller.run()
+    try:
+        controller = ImageCapture()
+        controller.run()
+    except rospy.ROSInterruptException:
+        pass
+

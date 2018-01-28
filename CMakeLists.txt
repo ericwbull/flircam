@@ -9,6 +9,7 @@ project(flircam)
 ## if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
 ## is used, also find other catkin packages
 find_package(catkin REQUIRED COMPONENTS
+  genmsg
   roscpp
   std_msgs
   message_generation
@@ -51,6 +52,8 @@ find_package(catkin REQUIRED COMPONENTS
 add_message_files(
    FILES
    PanTiltPos.msg
+   Detection.msg
+   Configure.msg
 )
 
 ## Generate services in the 'srv' folder
@@ -69,9 +72,9 @@ add_message_files(
 
 ## Generate added messages and services with any dependencies listed here
 generate_messages(
-   DEPENDENCIES
-   std_msgs
-   flircam
+  DEPENDENCIES
+  std_msgs
+  flircam
 )
 
 ################################################
@@ -130,13 +133,13 @@ ${catkin_INCLUDE_DIRS}
 ## Add cmake target dependencies of the library
 ## as an example, code may need to be generated before libraries
 ## either from message generation or dynamic reconfigure
-# add_dependencies(${PROJECT_NAME} ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 
 ## Declare a C++ executable
 ## With catkin_make all packages are built within a single CMake context
 ## The recommended prefix ensures that target names across packages don't collide
-add_executable(FrameGrabber src/FrameGrabber.cpp)
-add_executable(ImageProc src/ImageProc.cpp)
+add_executable(FrameGrabber src/FrameGrabber.cpp src/ImageUtil.cpp)
+add_executable(ImageProc src/ImageProc.cpp src/ImageUtil.cpp)
+add_dependencies(ImageProc flircam_generate_messages_cpp)
 
 ## Rename C++ executable without prefix
 ## The above recommended prefix causes long target names, the following renames the
