@@ -1,0 +1,4 @@
+uint16 pixelChangeThreshold
+uint32 detectionThreshold
+uint32 safeThreshold
+uint32[10] signalHistogramWeight
