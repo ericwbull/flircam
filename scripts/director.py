@@ -16,13 +16,14 @@ class ImageCapture:
         rospy.init_node('ImageCapture', anonymous=True)
         
     def run(self):
+#        time.sleep(30)
         self.acquireFlatfield()
         while True:
-            #time.sleep(3)
-           raw_input("Press enter")
-           self.pointAndCapture(0,0,93)
-#           time.sleep(30)
-           self.count += 1
+#           time.sleep(120)
+            raw_input("Press enter")
+            self.pointAndCapture(0,0,92)
+#            self.sweep()
+            self.count += 1
         
     def capture(self, frameNum):
         self.pubSaveImage.publish(frameNum)
@@ -34,7 +35,7 @@ class ImageCapture:
         pantilt.verticalAngle=v
         self.pubPanTilt.publish(pantilt)
         print "{}: x={} y={}".format(self.count, h,v)
-        time.sleep(0.5)
+        time.sleep(1.5)
 
     def pointAndCapture(self, h, v, frm):
         self.point(h, v)
@@ -48,7 +49,7 @@ class ImageCapture:
     def sweep(self):
         frameNum = 1
         self.point(-90,-90)
-        time.sleep(1.5)
+        time.sleep(5)
         sweepUp=True
         
         for x in range(-90,91,20):

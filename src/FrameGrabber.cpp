@@ -49,15 +49,43 @@
 
 struct CamPub
 {
-    LeptonCamera cam;
+  LeptonCamera* cam = nullptr;
     ros::Publisher pub;
+
+  CamPub()
+  {
+    cam = new LeptonCamera();
+    //    cam->sendCommand(RESET, nullptr);
+    //    sleep(1);
+  }
+  void start()
+  {
+    cam->start();
+  }    
+  void stop()
+  {
+    cam->stop();
+  }    
+  void restart()
+  {
+    //    stop();
+    //    std::cout << "stopped" << std::endl;
+    //    delete cam;
+    //    cam = new LeptonCamera();
+    cam->sendCommand(RESET, nullptr);
+    std::cout << "reset" << std::endl;
+    //    sleep(1);
+    //    start();
+    //    std::cout << "started" << std::endl;
+  }    
+  
 };
 
 
 void SaveImage(const std_msgs::UInt32::ConstPtr& msg, CamPub& camPub)
 {
 
-    LeptonCamera& cam = camPub.cam;
+    LeptonCamera& cam = *camPub.cam;
     unsigned int imageId = msg->data;
 
     bool saveToFile = true;
@@ -84,6 +112,8 @@ void SaveImage(const std_msgs::UInt32::ConstPtr& msg, CamPub& camPub)
     else
     {
         std::cout << "no frame" << std::endl;
+	camPub.restart();
+	//	cam.sendCommand(
         return;
     }
 
@@ -141,11 +171,7 @@ int main(int argc, char** argv)
     std::cout << "FrameGrabber hello"<< std::endl;
     // Open camera connection
     CamPub camPub;
-    camPub.cam.sendCommand(REBOOT, nullptr);
-    //    sleep(1);
-    //    cam.sendCommand(FFC, nullptr);
-    sleep(1);
-    camPub.cam.start();
+    camPub.start();
 
     ros::init(argc, argv, "FrameGrabber");
     ros::NodeHandle n;
@@ -160,7 +186,7 @@ int main(int argc, char** argv)
 
 
     // Release sensor
-    camPub.cam.stop();
+    camPub.stop();
 
 
     return EXIT_SUCCESS;

@@ -1,0 +1,3 @@
+<launch>
+	<node name="FrameGrabber" pkg="flircam" type="FrameGrabber" />
+</launch>

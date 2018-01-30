@@ -101,6 +101,12 @@ void Configure(const flircam::Configure::ConstPtr& msg)
     std::cout << "pixel change " << g_pixelChangeThreshold << std::endl;
     std::cout << "detection " << g_detectionThreshold << std::endl;
     std::cout << "safe " << g_safeThreshold << std::endl;
+    std::cout << "hist weight ";
+    for(auto h: g_signalHistogramWeight)
+      {
+	std::cout << h << ' ';
+      }
+    std::cout << std::endl;
 }
 
 void ProcessImage(const std_msgs::UInt32::ConstPtr& msg)
@@ -168,11 +174,25 @@ void ProcessImage(const std_msgs::UInt32::ConstPtr& msg)
 }
 
 
+void configInit()
+{
+  g_pixelChangeThreshold = 100;
+  g_detectionThreshold = 300;
+  g_safeThreshold = 60;
+  int weight = 0;
+  for (auto& h : g_signalHistogramWeight)
+    {
+      h = weight++;
+    }
+}
+
 /**
  * @brief Sample app for streaming IR videos using LePi parallel interface
  */
 int main(int argc, char** argv)
 {
+
+  configInit();
     std::cout << "ImageProc hello"<< std::endl;
 
     ros::init(argc, argv, "ImageProc");
