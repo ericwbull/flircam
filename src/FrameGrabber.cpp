@@ -72,8 +72,9 @@ struct CamPub
     //    std::cout << "stopped" << std::endl;
     //    delete cam;
     //    cam = new LeptonCamera();
+    std::cout << "sending reset" << std::endl;
     cam->sendCommand(RESET, nullptr);
-    std::cout << "reset" << std::endl;
+    std::cout << "reset done" << std::endl;
     //    sleep(1);
     //    start();
     //    std::cout << "started" << std::endl;

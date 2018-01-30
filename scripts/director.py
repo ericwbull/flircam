@@ -16,13 +16,13 @@ class ImageCapture:
         rospy.init_node('ImageCapture', anonymous=True)
         
     def run(self):
-#        time.sleep(30)
+        time.sleep(30)
         self.acquireFlatfield()
         while True:
-#           time.sleep(120)
-            raw_input("Press enter")
-            self.pointAndCapture(0,0,92)
-#            self.sweep()
+#            time.sleep(120)
+#            raw_input("Press enter")
+#            self.pointAndCapture(0,0,92)
+            self.sweep()
             self.count += 1
         
     def capture(self, frameNum):
