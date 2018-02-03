@@ -68,16 +68,29 @@ struct CamPub
   }    
   void restart()
   {
-    //    stop();
-    //    std::cout << "stopped" << std::endl;
+    std::cout << "stopping..." << std::endl;
+    stop();
+    std::cout << "stopped" << std::endl;
     //    delete cam;
     //    cam = new LeptonCamera();
     std::cout << "sending reset" << std::endl;
-    cam->sendCommand(RESET, nullptr);
+    int count = 10;
+    while (false == cam->sendCommand(RESET, nullptr))
+      {
+	std::cout << "reset failed " << count << std::endl;
+	
+	if (count-- == 0)
+	  {
+	    std::cout << "! FrameGrabber self-terminating" << std::endl;
+	    exit(-1);
+	  }
+      }
+    
     std::cout << "reset done" << std::endl;
+    
     //    sleep(1);
-    //    start();
-    //    std::cout << "started" << std::endl;
+    start();
+    std::cout << "started" << std::endl;
   }    
   
 };

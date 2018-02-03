@@ -16,7 +16,7 @@ class ImageCapture:
         rospy.init_node('ImageCapture', anonymous=True)
         
     def run(self):
-        time.sleep(30)
+#        time.sleep(60)
         self.acquireFlatfield()
         while True:
 #            time.sleep(120)
@@ -28,6 +28,8 @@ class ImageCapture:
     def capture(self, frameNum):
         self.pubSaveImage.publish(frameNum)
         print "{}: frame={}".format(self.count, frameNum)
+        # Give camera some time to grab the image
+        time.sleep(1.5)
         
     def point(self, h, v):
         pantilt=PanTiltPos()
@@ -35,7 +37,8 @@ class ImageCapture:
         pantilt.verticalAngle=v
         self.pubPanTilt.publish(pantilt)
         print "{}: x={} y={}".format(self.count, h,v)
-        time.sleep(1.5)
+        # Give servo some time to move
+        time.sleep(1)
 
     def pointAndCapture(self, h, v, frm):
         self.point(h, v)
