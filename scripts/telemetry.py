@@ -5,7 +5,7 @@ import serial
 import rospy
 import subprocess
 import threading
-import array
+import struct
 from enum import Enum
 from flircam.msg import Detection
     
@@ -21,6 +21,8 @@ class StreamID(Enum):
     REQUEST_IMAGE = 8
     REQUEST_DETECTION_ARRAY = 10
     RETURN_IMAGE = 9
+    RETURN_PING = 66
+    REQUEST_PING = 65
 
 def DetectionReceived(data, telemetryNode):
     print "imageId={} signalStength={} detection={} safe={} signalHistogram={}".format(data.imageId, data.signalStrength, data.detection, data.safe, ','.join(str(x) for x in data.signalHistogram))
@@ -92,15 +94,20 @@ class TelemetryNode:
         rate = rospy.Rate(10)
         while not rospy.is_shutdown():
             try:
-                (node, data, trailer) = self.readMessageFromSerialPort()
-                streamid = int(struct.unpack_from('B', data)[0])
-                self.doMessageByStream(streamid, node, data, trailer)
+                data = self.readMessageFromSerialPort()
+                streamid = StreamID(data[0])
+                self.doMessageByStream(streamid, data[1:])
             except struct.error:
                 pass
             rate.sleep()
 
+    def doPing(self,data):
+        print "Ping={}".format(data)
+        self.sendDataToSerialPort(StreamID.RETURN_PING, data)
+        
     def doWifiOnOff(self,data):
-        on = struct.unpack_from('B', data)[0]
+        print "WifiReqest={}".format(data)
+        on = data[0]
         if on:
             cmd = "block"
         else:
@@ -108,18 +115,20 @@ class TelemetryNode:
         subprocess.call(["rfkill", cmd, "0"])
 
     def doSendImage(self,data):
-        imageId = ord(data[0])
-        imageType = ord(data[1])
-        blockSize = ord(data[2])
-        rangeListSize = ord(data[3])
+        imageId = data[0]
+        imageType = data[1]
+        blockSize = data[2]
+        rangeListSize = data[3]
+        print "SendImageRequest: id={} type={} blockSize={} rangeCount={}".format(imageId, imageType, blockSize, rangeListSize)
         rangeData = data[4:]
         for i in range(0, rangeListSize):
-            startBlock = ord(rangeData[i*2])
-            endBlock = ord(rangeData[i*2 + 1])
-            self.SendImageBlockRange(imageId, imageType, blockSize, startBlock, endBlock)
+            startBlock = rangeData[i*2]
+            blockCount = rangeData[i*2 + 1]
+            self.SendImageBlockRange(imageId, imageType, blockSize, startBlock, blockCount)
 
-    def SendImageBlockRange(self, imageId, imageType, blockSize, start, end):
-        for i in range(start, end + 1):
+    def SendImageBlockRange(self, imageId, imageType, blockSize, start, count):
+        print "SendImageBlockRange start={} count={}".format(start, count)
+        for i in range(start, start+count):
             self.SendImageBlock(imageId, imageType, blockSize, i)
 
     def SendImageBlock(self, imageId, imageType, size, num):
@@ -172,13 +181,15 @@ class TelemetryNode:
         sendData.append(data)
         self.sendToSerialPort(StreamID.RETURN_IMAGE,sendData)
 
-    def doMessageByStream(self, streamid, node, data, trailer):
+    def doMessageByStream(self, streamid, data):
         if (streamid == StreamID.REQUEST_WIFI):
             self.doWifiOnOff(data)
         if (streamid == StreamID.REQUEST_IMAGE):
             self.doSendImage(data)
         if (streamid == StreamID.REQUEST_DETECTION_ARRAY):
             self.sendSafeDetectArrayToSerialPort()
+        if (streamid == StreamID.REQUEST_PING):
+            self.doPing(data)
 
     def readLineFromSerialPort(self):
         msg = ""
@@ -187,10 +198,10 @@ class TelemetryNode:
             print "polling serial {}".format(i)
             i = i + 1
             msg = self.ser.readline()
-        return msg
+        return msg.rstrip()
 
     def readDataFromSerialPort(self):
-        size = struct.unpack('B', self.ser.read())[0];
+        size = self.ser.read()
         print "size from serial data = {}".format(size)
         msg = bytearray(size)
         
@@ -199,26 +210,30 @@ class TelemetryNode:
         return msg
 
     def readMessageFromSerialPort(self):
-        msg = self.readLineFromSerialPort();
-        print "message={}".format(msg)
+        msg = self.readLineFromSerialPort()
+        print "message='{}'".format(msg)
+
         
-        # Parse node from message
-        matchObj = re.match(r'\s*\[(\d+)\](.*)', msg)
-        node = 0
-        trailer = ''
-        if matchObj:
-            node = int(matchObj.group(1))
-            trailer = matchObj.group(2).strip()
+        #convert hex to data
+        data = bytearray.fromhex(msg)
+        
+#        # Parse node from message
+#        matchObj = re.match(r'\s*\[(\d+)\](.*)', msg)
+#        node = 0
+#        trailer = ''
+#        if matchObj:
+#            node = int(matchObj.group(1))
+#            trailer = matchObj.group(2).strip()
             
-        print "node={} trailer='{}'".format(node,trailer)
-        data = self.readDataFromSerialPort();
+#        print "node={} trailer='{}'".format(node,trailer)
+#        data = self.readDataFromSerialPort();
         #        print "data='{}' len={}".format(data,len(data))
 
-        return node, data, trailer
+        return data
 
     def sendDataToSerialPort(self,streamId,data):
         self.serialSendLock.acquire(True)
-        msg = "{:02x}".format(streamId)
+        msg = "{:02x}".format(streamId.value)
         for b in data:
             msg += "{:02x}".format(b)
         self.ser.write(msg)        
@@ -226,7 +241,7 @@ class TelemetryNode:
         self.serialSendLock.release()
 
     def sendDetectionMessageToSerialPort(self, msg):
-        data = array.array('\0'*50)
+        data = bytearray(chr(0)*50)
         struct.pack_into('>IIBB', data, 0, msg.imageId, msg.signalStrength, msg.detection, msg.safe)
         i = 0
         for h in msg.signalHistogram:
@@ -236,7 +251,7 @@ class TelemetryNode:
 
     def sendSafeDetectArrayToSerialPort(self):
         detectBytes = BoolListToByteList(self.detectionBits)
-        data = array.array('\0' * 18)
+        data = bytearray(chr(0)*18)
         i = 0
         for b in detectBytes:
             data[i] = chr(b)
