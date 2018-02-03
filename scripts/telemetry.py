@@ -3,11 +3,29 @@
 import time
 import serial
 import rospy
-
+import subprocess
+import threading
+import array
+from enum import Enum
 from flircam.msg import Detection
+    
+SERIAL_PORT='/dev/ttyS0'
+# Radio rate is about 55000.
+# It will be trouble if we send data to moteino faster than it can transmit it.
+BAUD_RATE=38400
+
+class StreamID(Enum):
+    RETURN_DETECTION = 4
+    RETURN_DETECTION_ARRAY = 5
+    REQUEST_WIFI = 7
+    REQUEST_IMAGE = 8
+    REQUEST_DETECTION_ARRAY = 10
+    RETURN_IMAGE = 9
 
 def DetectionReceived(data, telemetryNode):
     print "imageId={} signalStength={} detection={} safe={} signalHistogram={}".format(data.imageId, data.signalStrength, data.detection, data.safe, ','.join(str(x) for x in data.signalHistogram))
+
+    telemetryNode.sendDetectionMessageToSerialPort(data)
 
     bitNum = data.imageId - 1
     if data.safe:
@@ -20,10 +38,12 @@ def DetectionReceived(data, telemetryNode):
     else:
         telemetryNode.detectionBits[bitNum]=False
         
-    telemetryNode.sendToSerialPort(data)
+    telemetryNode.count += 1
 
-SERIAL_PORT='/dev/ttyS0'
-BAUD_RATE=115200
+# Don't send the detection or safe array unless requested
+#    if (0 == (telemetryNode.count % 10)):
+#        telemetryNode.sendSafeDetectArrayToSerialPort()
+
 
 def BoolListToByteList(mylist):
     weight = 1
@@ -66,47 +86,167 @@ class TelemetryNode:
                                                                         
         rospy.Subscriber('detection', Detection, DetectionReceived, self)
         rospy.init_node('TelemetryNode', anonymous=True)
+        self.serialSendLock = threading.Lock()
         
     def run(self):
         rate = rospy.Rate(10)
         while not rospy.is_shutdown():
+            try:
+                (node, data, trailer) = self.readMessageFromSerialPort()
+                streamid = int(struct.unpack_from('B', data)[0])
+                self.doMessageByStream(streamid, node, data, trailer)
+            except struct.error:
+                pass
             rate.sleep()
 
-    def sendToSerialPort(self,data):
-        msg = "04{:08x}{:08x}{:02x}{:02x}".format(data.imageId,data.signalStrength,data.detection,data.safe)
-        for h in data.signalHistogram:
-            msg += "{:08x}".format(h)
+    def doWifiOnOff(self,data):
+        on = struct.unpack_from('B', data)[0]
+        if on:
+            cmd = "block"
+        else:
+            cmd = "unblock"
+        subprocess.call(["rfkill", cmd, "0"])
 
+    def doSendImage(self,data):
+        imageId = ord(data[0])
+        imageType = ord(data[1])
+        blockSize = ord(data[2])
+        rangeListSize = ord(data[3])
+        rangeData = data[4:]
+        for i in range(0, rangeListSize):
+            startBlock = ord(rangeData[i*2])
+            endBlock = ord(rangeData[i*2 + 1])
+            self.SendImageBlockRange(imageId, imageType, blockSize, startBlock, endBlock)
+
+    def SendImageBlockRange(self, imageId, imageType, blockSize, start, end):
+        for i in range(start, end + 1):
+            self.SendImageBlock(imageId, imageType, blockSize, i)
+
+    def SendImageBlock(self, imageId, imageType, size, num):
+        if (imageType == 1):
+            self.SendCurrentImageBlock(imageId, size, num)
+        elif (imageType == 2):
+            self.SendBaselineImageBlock(imageId, size, num)
+        elif (imageType == 3):
+            self.SendDetectionImageBlock(imageId, size, num)
+
+    def GetCurrentImageFileName(imageId):
+        majorId = imageId >> 65536
+        minorId = imageId & 0xffff
+        return "/tmp/flircam/{0}/{1}".format(majorId,minorId)
+    def GetBaselineImageFileName(imageId):
+        return "{0}.baseline".format(GetCurrentImageFileName(imageId))
+    def GetDetectionImageFileName(imageId):
+        return "{0}.detection".format(GetCurrentImageFileName(imageId))
+    
+    def SendCurrentImageBlock(self, imageId, size, num):
+        imageFile = file(GetCurrentImageFileName(imageId),"rb")
+        endByte = 60*80*2
+        imageFile.seek(num * size)
+        if (num * size + size > endByte):
+            size = endByte - num * size
+        data = imageFile.read(size)
+        sendData = bytearray(chr(num))
+        sendData.append(data)
+        self.sendToSerialPort(StreamID.RETURN_IMAGE,sendData)
+
+    def SendBaselineImageBlock(self, imageId, size, num):
+        imageFile = file(GetBaselineImageFileName(imageId),"rb")
+        endByte = 60*80*2
+        imageFile.seek(num * size)
+        if (num * size + size > endByte):
+            size = endByte - num * size
+        data = imageFile.read(size)
+        sendData = bytearray(chr(num))
+        sendData.append(data)
+        self.sendToSerialPort(StreamID.RETURN_IMAGE,sendData)
+
+    def SendDetectionImageBlock(self, imageId, size, num):
+        imageFile = file(GetBaselineImageFileName(imageId),"rb")
+        endByte = 60*80/8
+        imageFile.seek(num * size)
+        if (num * size + size > endByte):
+            size = endByte - num * size
+        data = imageFile.read(size)
+        sendData = bytearray(chr(num))
+        sendData.append(data)
+        self.sendToSerialPort(StreamID.RETURN_IMAGE,sendData)
+
+    def doMessageByStream(self, streamid, node, data, trailer):
+        if (streamid == StreamID.REQUEST_WIFI):
+            self.doWifiOnOff(data)
+        if (streamid == StreamID.REQUEST_IMAGE):
+            self.doSendImage(data)
+        if (streamid == StreamID.REQUEST_DETECTION_ARRAY):
+            self.sendSafeDetectArrayToSerialPort()
+
+    def readLineFromSerialPort(self):
+        msg = ""
+        i = 0
+        while not msg:
+            print "polling serial {}".format(i)
+            i = i + 1
+            msg = self.ser.readline()
+        return msg
+
+    def readDataFromSerialPort(self):
+        size = struct.unpack('B', self.ser.read())[0];
+        print "size from serial data = {}".format(size)
+        msg = bytearray(size)
+        
+        for i in range(0, size):
+            msg[i] = self.ser.read();
+        return msg
+
+    def readMessageFromSerialPort(self):
+        msg = self.readLineFromSerialPort();
+        print "message={}".format(msg)
+        
+        # Parse node from message
+        matchObj = re.match(r'\s*\[(\d+)\](.*)', msg)
+        node = 0
+        trailer = ''
+        if matchObj:
+            node = int(matchObj.group(1))
+            trailer = matchObj.group(2).strip()
+            
+        print "node={} trailer='{}'".format(node,trailer)
+        data = self.readDataFromSerialPort();
+        #        print "data='{}' len={}".format(data,len(data))
+
+        return node, data, trailer
+
+    def sendDataToSerialPort(self,streamId,data):
+        self.serialSendLock.acquire(True)
+        msg = "{:02x}".format(streamId)
+        for b in data:
+            msg += "{:02x}".format(b)
         self.ser.write(msg)        
         self.ser.write('\n')        
+        self.serialSendLock.release()
 
-        
+    def sendDetectionMessageToSerialPort(self, msg):
+        data = array.array('\0'*50)
+        struct.pack_into('>IIBB', data, 0, msg.imageId, msg.signalStrength, msg.detection, msg.safe)
+        i = 0
+        for h in msg.signalHistogram:
+            struct.pack_into('>I', data, 10 + 4 * i, h)
+            i += 1
+        self.sendDataToSerialPort(StreamID.RETURN_DETECTION, data)
+
+    def sendSafeDetectArrayToSerialPort(self):
         detectBytes = BoolListToByteList(self.detectionBits)
-        msg = "05"
+        data = array.array('\0' * 18)
+        i = 0
         for b in detectBytes:
-            msg += "{:02x}".format(b)
+            data[i] = chr(b)
+            i += 1
 
         safeBytes = BoolListToByteList(self.safeBits)
         for b in safeBytes:
-            msg += "{:02x}".format(b)
-
-        self.ser.write(msg)
-        self.ser.write('\n')        
-
-#        msg = "0141424344454647\r"
-#        print "msg={}".format(msg)
-#        for c in msg:
-#            self.ser.write(c)
-#        self.ser.flush()
-#        self.ser.write('\r')        
-#        self.ser.write('\n')        
-#        self.ser.write('01')
-#        for i in range(0,self.count):
-#            print "{}:{}".format(self.count,chr(85+i))
-#            self.ser.write("{:02x}".format(85+i))
-#        self.ser.write('\r')        
-#        self.ser.flush()
-        self.count += 1
+            data[i] = chr(b)
+            i += 1
+        self.sendDataToSerialPort(StreamID.RETURN_DETECTION_ARRAY, data)
                            
 if __name__ == '__main__':
     telemetry = TelemetryNode()

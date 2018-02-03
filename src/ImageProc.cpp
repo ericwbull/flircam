@@ -30,7 +30,7 @@ uint32_t g_detectionThreshold = 0;
 uint32_t g_safeThreshold = 0;
 
 
-int getPixel(int x, int y, const std::vector<uint16_t>& data)
+inline int getPixel(int x, int y, const std::vector<uint16_t>& data)
 {
     int i = y * 80 + x;
     //  std::cout << "i=" << std::dec << i << " " << data[i] << std::endl;
@@ -43,7 +43,7 @@ int getPixel(int x, int y, const std::vector<uint16_t>& data)
     return data[i];
 }
 
-int sumAdjacentPixels(int x, int y, const std::vector<uint16_t>& data)
+inline int sumAdjacentPixels(int x, int y, const std::vector<uint16_t>& data)
 {
     int sum = 0;
     sum += getPixel(x-1,y-1,data);
@@ -143,7 +143,7 @@ void ProcessImage(const std_msgs::UInt32::ConstPtr& msg)
 
         // write the detection bitmap to file for inspection.
         ImageUtil::WritePBM(imageId, detectionMap, "detect");
-
+	ImageUtil::WriteDetectionMap(imageId, detectionMap);
 
         //
         // Publish detection result always

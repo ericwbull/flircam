@@ -17,10 +17,29 @@ namespace ImageUtil
   const int IMAGE_SIZE_PIXELS=60*80;
   const int IMAGE_SIZE_BYTES=IMAGE_SIZE_PIXELS*sizeof(uint16_t);
   
-bool WriteImageDataToFile(const char* file_name, const std::vector<uint16_t>& frame );
 bool ReadImageDataFromFile(const char* file_name, std::vector<uint16_t>& frame );
   bool WriteImageDataToPGMFile(const char* file_name, const std::vector<uint16_t>& frame );
   bool WriteImageDataToPBMFile(const char* file_name, const std::vector<uint16_t>& frame );
+
+
+template <typename T>
+bool WriteImageDataToFile(const char* file_name, const std::vector<T>& frame )
+{
+  std::ofstream ofs(file_name, std::ios::binary);
+  
+  if (ofs.fail())
+    {
+      std:: cerr << "File open failed '" << file_name << "'" << std::endl;
+      return false;
+    }
+
+  int size = frame.size() * sizeof(T);
+  //  ofs.write(&size, sizeof(int));
+  // For the current application the size is always 80 x 60 pixels
+  ofs.write(reinterpret_cast<const char*>(&frame[0]), size);
+
+  return true;
+}
 
 std::string GetImageFileName(unsigned int imageId)
 {
@@ -50,6 +69,11 @@ std::string GetBaselineFileName(unsigned int imageId)
 {
   std::string imageFileName = GetImageFileName(imageId);
   return imageFileName + ".baseline";
+}
+std::string GetDetectionMapFileName(unsigned int imageId)
+{
+  std::string imageFileName = GetImageFileName(imageId);
+  return imageFileName + ".detection";
 }
 
 
@@ -94,24 +118,33 @@ bool WriteBaseline(unsigned int imageId, const std::vector<uint16_t>&d)
   return WriteImageDataToFile(GetBaselineFileName(imageId).c_str(),d);
 }
 
-bool WriteImageDataToFile(const char* file_name, const std::vector<uint16_t>& frame )
+bool WriteDetectionMap(unsigned int imageId, const std::vector<uint16_t>&d)
 {
-  std::ofstream ofs(file_name, std::ios::binary);
-  
-  if (ofs.fail())
+  std::vector<uint8_t> bitmap(d.size() / 8);
+  int byteNum = 0;
+  int bitMask = 1;
+  for (auto p : d)
     {
-      std:: cerr << "File open failed '" << file_name << "'" << std::endl;
-      return false;
+      if (p > 0)
+	{
+	  bitmap[byteNum] |= bitMask;
+	}
+
+      if (bitMask == 128)
+	{
+	  bitMask = 1;
+	  byteNum += 1;
+	}
+      else
+	{
+	  bitMask <<= 1;
+	}
     }
-
-  int size = frame.size() * sizeof(uint16_t);
-  //  ofs.write(&size, sizeof(int));
-  // For the current application the size is always 80 x 60 pixels
-  ofs.write(reinterpret_cast<const char*>(&frame[0]), size);
-
-  return true;
+  return WriteImageDataToFile(GetDetectionMapFileName(imageId).c_str(),bitmap);
 }
 
+
+  
 bool ReadImageDataFromFile(const char* file_name, std::vector<uint16_t>& frame )
 {
   std::ifstream ifs(file_name, std::ios::binary);

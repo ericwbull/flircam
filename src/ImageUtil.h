@@ -12,6 +12,7 @@ bool ReadImage(unsigned int imageId,std::vector<uint16_t>& frame );
 int write_png_file(const char* file_name, std::vector<uint16_t>& frame );
 bool ReadBaseline(unsigned int imageId, std::vector<uint16_t>&baseline);
 bool WriteBaseline(unsigned int imageId, const std::vector<uint16_t>&d);
+bool WriteDetectionMap(unsigned int imageId, const std::vector<uint16_t>&d);
 bool WritePBM(unsigned int imageId, const std::vector<uint16_t>&d, const char* ext);
 bool WritePGM(unsigned int imageId, const std::vector<uint16_t>&d, const char* ext);
 
