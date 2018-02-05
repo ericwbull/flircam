@@ -8,7 +8,8 @@ import threading
 import struct
 from enum import Enum
 from flircam.msg import Detection
-    
+import sys
+
 SERIAL_PORT='/dev/ttyS0'
 # Radio rate is about 55000.
 # It will be trouble if we send data to moteino faster than it can transmit it.
@@ -105,10 +106,12 @@ class TelemetryNode:
         while not rospy.is_shutdown():
             try:
                 data = self.readMessageFromSerialPort()
-                streamid = StreamID(data[0])
-                self.doMessageByStream(streamid, data[1:])
+                if (len(data)>0):
+                    streamid = StreamID(data[0])
+                    self.doMessageByStream(streamid, data[1:])
             except struct.error:
                 pass
+            sys.stdout.flush()
             rate.sleep()
 
     def doPing(self,data):
@@ -116,7 +119,6 @@ class TelemetryNode:
         self.sendDataToSerialPort(StreamID.RETURN_PING, data)
         
     def doWifiOnOff(self,data):
-        print "WifiReqest={}".format(data)
         off = data[0]
         cmd1="up"
         cmd2="unblock"
@@ -124,13 +126,14 @@ class TelemetryNode:
             cmd1 = "down"
             cmd2 = "block"
 
+        print "Wifi cmd1={} cmd2={}".format(cmd1,cmd2)
         subprocess.call(["/sbin/ifconfig", "wlan0", cmd1])
         time.sleep(5)
-        subprocess.call(["rfkill", cmd2, "0"])
+        subprocess.call(["/usr/sbin/rfkill", cmd2, "0"])
 
     def doShutdown(self):
         print "Shutdown"
-        subprocess.call(["shutdown","-h","now"])
+        subprocess.call(["/sbin/shutdown","-h","now"])
         
     def doSendImage(self,data):
         imageId = data[0]
