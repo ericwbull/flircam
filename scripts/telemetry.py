@@ -70,6 +70,15 @@ def BoolListToByteList(mylist):
         
     return byteList
 
+def GetCurrentImageFileName(imageId):
+    majorId = imageId >> 65536
+    minorId = imageId & 0xffff
+    return "/tmp/flircam/{0}/{1}".format(majorId,minorId)
+def GetBaselineImageFileName(imageId):
+    return "{0}.baseline".format(GetCurrentImageFileName(imageId))
+def GetDetectionImageFileName(imageId):
+    return "{0}.detection".format(GetCurrentImageFileName(imageId))
+    
 
 # Transfers messages, bidirectionally, between the SerialStream.Server (the gateway.js web app is on the other side) and ROS (serial port hardware is on the other side)
 class TelemetryNode:
@@ -139,15 +148,6 @@ class TelemetryNode:
         elif (imageType == 3):
             self.SendDetectionImageBlock(imageId, size, num)
 
-    def GetCurrentImageFileName(imageId):
-        majorId = imageId >> 65536
-        minorId = imageId & 0xffff
-        return "/tmp/flircam/{0}/{1}".format(majorId,minorId)
-    def GetBaselineImageFileName(imageId):
-        return "{0}.baseline".format(GetCurrentImageFileName(imageId))
-    def GetDetectionImageFileName(imageId):
-        return "{0}.detection".format(GetCurrentImageFileName(imageId))
-    
     def SendCurrentImageBlock(self, imageId, size, num):
         imageFile = file(GetCurrentImageFileName(imageId),"rb")
         endByte = 60*80*2
@@ -156,8 +156,8 @@ class TelemetryNode:
             size = endByte - num * size
         data = imageFile.read(size)
         sendData = bytearray(chr(num))
-        sendData.append(data)
-        self.sendToSerialPort(StreamID.RETURN_IMAGE,sendData)
+        sendData.extend(data)
+        self.sendDataToSerialPort(StreamID.RETURN_IMAGE,sendData)
 
     def SendBaselineImageBlock(self, imageId, size, num):
         imageFile = file(GetBaselineImageFileName(imageId),"rb")
@@ -167,8 +167,8 @@ class TelemetryNode:
             size = endByte - num * size
         data = imageFile.read(size)
         sendData = bytearray(chr(num))
-        sendData.append(data)
-        self.sendToSerialPort(StreamID.RETURN_IMAGE,sendData)
+        sendData.extend(data)
+        self.sendDataToSerialPort(StreamID.RETURN_IMAGE,sendData)
 
     def SendDetectionImageBlock(self, imageId, size, num):
         imageFile = file(GetBaselineImageFileName(imageId),"rb")
@@ -178,8 +178,8 @@ class TelemetryNode:
             size = endByte - num * size
         data = imageFile.read(size)
         sendData = bytearray(chr(num))
-        sendData.append(data)
-        self.sendToSerialPort(StreamID.RETURN_IMAGE,sendData)
+        sendData.extend(data)
+        self.sendDataToSerialPort(StreamID.RETURN_IMAGE,sendData)
 
     def doMessageByStream(self, streamid, data):
         if (streamid == StreamID.REQUEST_WIFI):
