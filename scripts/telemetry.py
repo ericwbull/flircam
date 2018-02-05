@@ -23,6 +23,7 @@ class StreamID(Enum):
     RETURN_IMAGE = 9
     RETURN_PING = 66
     REQUEST_PING = 65
+    REQUEST_SHUTDOWN = 11
 
 def DetectionReceived(data, telemetryNode):
     print "imageId={} signalStength={} detection={} safe={} signalHistogram={}".format(data.imageId, data.signalStrength, data.detection, data.safe, ','.join(str(x) for x in data.signalHistogram))
@@ -116,13 +117,21 @@ class TelemetryNode:
         
     def doWifiOnOff(self,data):
         print "WifiReqest={}".format(data)
-        on = data[0]
-        if on:
-            cmd = "block"
-        else:
-            cmd = "unblock"
-        subprocess.call(["rfkill", cmd, "0"])
+        off = data[0]
+        cmd1="up"
+        cmd2="unblock"
+        if off:
+            cmd1 = "down"
+            cmd2 = "block"
 
+        subprocess.call(["/sbin/ifconfig", "wlan0", cmd1])
+        time.sleep(5)
+        subprocess.call(["rfkill", cmd2, "0"])
+
+    def doShutdown(self):
+        print "Shutdown"
+        subprocess.call(["shutdown","-h","now"])
+        
     def doSendImage(self,data):
         imageId = data[0]
         imageType = data[1]
@@ -184,6 +193,8 @@ class TelemetryNode:
     def doMessageByStream(self, streamid, data):
         if (streamid == StreamID.REQUEST_WIFI):
             self.doWifiOnOff(data)
+        if (streamid == StreamID.REQUEST_SHUTDOWN):
+            self.doShutdown()
         if (streamid == StreamID.REQUEST_IMAGE):
             self.doSendImage(data)
         if (streamid == StreamID.REQUEST_DETECTION_ARRAY):

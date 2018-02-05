@@ -1,6 +1,6 @@
 <launch>
 	<!-- node name="configure" pkg="flircam" type="configure.py" / -->
-	<node name="pantilt" pkg="flircam" type="pantilt.py" />
+	<!-- node name="pantilt" pkg="flircam" type="pantilt.py" / -->
 	<node name="telemetry" pkg="flircam" type="telemetry.py" />
 	<node name="ImageProc" pkg="flircam" type="ImageProc" />
 	<node name="FrameGrabber2" pkg="flircam" type="FrameGrabber2" respawn="true" />
