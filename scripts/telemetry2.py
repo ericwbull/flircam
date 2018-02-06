@@ -7,6 +7,9 @@ import threading
 import struct
 from enum import Enum
 from flircam.msg import Detection
+from flircam.msg import ImageRequest
+from flircam.msg import DownlinkData
+from flircam.msg import Block
 import sys
 
 class StreamID(Enum):
@@ -21,10 +24,7 @@ class StreamID(Enum):
     REQUEST_SHUTDOWN = 11
 
 def ImageRequestReceived(request, telemetryNode):
-    print "image request: imageId={} type={} blockSize={} blockListCount={}"\
-        .format(request.id, request.type, request.blockSize, len(request.blockList))
-
-    
+    telemetryNode.doSendImage(request)
 
 def DetectionReceived(data, telemetryNode):
     print "imageId={} signalStength={} detection={} safe={} signalHistogram={}".format(data.imageId, data.signalStrength, data.detection, data.safe, ','.join(str(x) for x in data.signalHistogram))
@@ -44,7 +44,7 @@ def DetectionReceived(data, telemetryNode):
         
     telemetryNode.count += 1
 
-    telemetryNode.sendSafeDetectArrayToSerialPort(imageId)
+    telemetryNode.sendSafeDetectArrayToDownlink(data.imageId)
 
 
 def BoolListToByteList(mylist):
@@ -83,6 +83,7 @@ def GetDetectionImageFileName(imageId):
 # Transfers messages, bidirectionally, between the SerialStream.Server (the gateway.js web app is on the other side) and ROS (serial port hardware is on the other side)
 class TelemetryNode:
     def __init__(self):
+        self.count = 0
         self.detectionBits = [False for x in range(70)]
         self.safeBits = [False for x in range(70)]
 
@@ -93,6 +94,7 @@ class TelemetryNode:
         
     def run(self):
         rate = rospy.Rate(10)
+        print "Ready"
         rospy.spin()
 
     def doSendImage(self, r):
@@ -106,6 +108,7 @@ class TelemetryNode:
             self.SendImageBlock(imageId, imageType, blockSize, i)
 
     def SendImageBlock(self, imageId, imageType, size, num):
+        print "SendImageBlock imageId={}  type={} size={} num={}".format(imageId, imageType, size, num)
         if (imageType == 1):
             self.SendCurrentImageBlock(imageId, size, num)
         elif (imageType == 2):
@@ -114,54 +117,34 @@ class TelemetryNode:
             self.SendDetectionImageBlock(imageId, size, num)
 
     def SendCurrentImageBlock(self, imageId, size, num):
-        imageFile = file(GetCurrentImageFileName(imageId),"rb")
-        endByte = 60*80*2
-        imageFile.seek(num * size)
-        if (num * size + size > endByte):
-            size = endByte - num * size
-
-        data = imageFile.read(size)
-        downlink = Downlink()
-        downlink.streamId = StreamID.RETURN_IMAGE
-        downlink.data = bytearray(chr(num))
-        downlink.verifyReceipt = False
-        downlink.data.extend(data)
-        self.pubDownlink.publish(downlink)
+        self.SendBlockFromFile(GetCurrentImageFileName(imageId), num, size, 60*80*2)
 
     def SendBaselineImageBlock(self, imageId, size, num):
-        imageFile = file(GetBaselineImageFileName(imageId),"rb")
-        endByte = 60*80*2
-        imageFile.seek(num * size)
-        if (num * size + size > endByte):
-            size = endByte - num * size
-
-        data = imageFile.read(size)
-        downlink = Downlink()
-        downlink.streamId = StreamID.RETURN_IMAGE
-        downlink.data = bytearray(chr(num))
-        downlink.verifyReceipt = False
-        downlink.data.extend(data)
-        self.pubDownlink.publish(downlink)
-
+        self.SendBlockFromFile(GetBaselineImageFileName(imageId), num, size, 60*80*2)
         
     def SendDetectionImageBlock(self, imageId, size, num):
-        imageFile = file(GetBaselineImageFileName(imageId),"rb")
-        endByte = 60*80/8
-        imageFile.seek(num * size)
-        if (num * size + size > endByte):
-            size = endByte - num * size
+        self.SendBlockFromFile(GetDetectionImageFileName(imageId), num, size, 60*80/8)
 
-        data = imageFile.read(size)
-        downlink = Downlink()
-        downlink.streamId = StreamID.RETURN_IMAGE
-        downlink.data = bytearray(chr(num))
+    def SendBlockFromFile(self, fileName, num, size, endPos):
+        imageFile = file(fileName,"rb")
+        pos = num*size
+        imageFile.seek(pos)
+        if (pos + size > endPos):
+            size = endPos - pos
+
+        print "SendDetectionBlock pos={} size={}".format(pos,size)
+        fileData = imageFile.read(size)
+        downlink = DownlinkData()
+        downlink.streamId = StreamID.RETURN_IMAGE.value
         downlink.verifyReceipt = False
-        downlink.data.extend(data)
+        downlink.data = [num]
+        downlink.data.extend(map(ord,fileData))
+        time.sleep(1)
         self.pubDownlink.publish(downlink)
 
     def sendDetectionMessageToDownlink(self, msg):
-        downlink = Downlink()
-        downlink.streamId = StreamID.RETURN_DETECTION
+        downlink = DownlinkData()
+        downlink.streamId = StreamID.RETURN_DETECTION.value
         downlink.data = bytearray(chr(0)*50)
         downlink.verifyReceipt = False
         
@@ -173,23 +156,24 @@ class TelemetryNode:
         self.pubDownlink.publish(downlink)
 
     def sendSafeDetectArrayToDownlink(self,imageId):
-        downlink = Downlink()
-        downlink.streamId = StreamID.RETURN_DETECTION_ARRAY
-        downlink.data = bytearray(chr(0)*22)
+        downlink = DownlinkData()
+        downlink.streamId = StreamID.RETURN_DETECTION_ARRAY.value
+        data = bytearray(chr(0)*22)
         downlink.verifyReceipt = False
 
-        struct.pack_into('>I', downlink.data, 0, imageId)
+        struct.pack_into('>I', data, 0, imageId)
         
         detectBytes = BoolListToByteList(self.detectionBits)
         i = 4
         for b in detectBytes:
-            downlink.data[i] = chr(b)
+            data[i] = chr(b)
             i += 1
 
         safeBytes = BoolListToByteList(self.safeBits)
         for b in safeBytes:
             data[i] = chr(b)
             i += 1
+        downlink.data = list(data)
         self.pubDownlink.publish(downlink)
                            
 if __name__ == '__main__':

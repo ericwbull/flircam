@@ -17,10 +17,11 @@ SERIAL_PORT='/dev/ttyS0'
 # It will be trouble if we send data to moteino faster than it can transmit it.
 BAUD_RATE=38400
 
-def DetectionReceived(downlink, bridgeNode):
+def DownlinkDataReceived(downlink, bridgeNode):
     # Send downlink data to serial port
     # Todo: implement verifyReceipt
-    self.sendDataToSerialPort(downlink.streamId,downlink.data)
+    streamId = StreamID(downlink.streamId)
+    bridge.sendDataToSerialPort(streamId,map(ord,downlink.data))
 
 class StreamID(Enum):
     RETURN_DETECTION = 4
@@ -36,7 +37,6 @@ class StreamID(Enum):
 class SerialPortROSBridge:
     def __init__(self):
         serialIsOpen = False
-        self.count=0
         while not serialIsOpen:
             try:
                 self.ser = serial.Serial(SERIAL_PORT, baudrate=BAUD_RATE)
@@ -91,13 +91,16 @@ class SerialPortROSBridge:
         imageRequest.blockSize = data[2]
         imageRequest.blockList = []
         rangeListSize = data[3]
-        print "SendImageRequest: id={} type={} blockSize={} rangeCount={}".format(imageId, imageType, blockSize, rangeListSize)
         rangeData = data[4:]
         for i in range(0, rangeListSize):
             block = Block()
             block.start = rangeData[i*2]
             block.count = rangeData[i*2+1]
-            pubImageRequest.publish(imageRequest)
+            imageRequest.blockList.append(block)
+
+        print "SendImageRequest: id={} type={} blockSize={} rangeCount={}"\
+            .format(imageRequest.id, imageRequest.type, imageRequest.blockSize, len(imageRequest.blockList))
+        self.pubImageRequest.publish(imageRequest)
 
 
     def doMessageByStream(self, streamid, data):
@@ -135,7 +138,8 @@ class SerialPortROSBridge:
         for b in data:
             msg += "{:02x}".format(b)
         self.ser.write(msg)        
-        self.ser.write('\n')        
+        self.ser.write('\n')
+        print "sendDataToSerialPort: {}".format(msg)
         self.serialSendLock.release()
                            
 if __name__ == '__main__':

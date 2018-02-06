@@ -1,0 +1,17 @@
+#!/bin/bash
+
+pigpiod
+
+# hdmi off
+/usr/bin/tvservice -o
+
+# bluetooth off
+rfkill block 1
+
+# wifi off
+# To turn on send 5:0701
+#/sbin/ifconfig wlan0 down
+sleep 5
+#rfkill block 0
+
+roslaunch flircam flircam.launch
