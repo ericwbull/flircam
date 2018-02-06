@@ -54,6 +54,9 @@ add_message_files(
    PanTiltPos.msg
    Detection.msg
    Configure.msg
+   Block.msg
+   DownlinkData.msg
+   ImageRequest.msg
 )
 
 ## Generate services in the 'srv' folder

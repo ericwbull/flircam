@@ -1,8 +1,9 @@
 <launch>
 	<!-- node name="configure" pkg="flircam" type="configure.py" / -->
-	<node name="pantilt" pkg="flircam" type="pantilt.py" />
-	<node name="telemetry" pkg="flircam" type="telemetry.py" />
-	<node name="ImageProc" pkg="flircam" type="ImageProc" />
+	<node name="SerialPortROSBridge" pkg="flircam" type="SerialPortROSBridge.py" respawn="true" />
+	<node name="pantilt" pkg="flircam" type="pantilt.py" respawn="true" />
+	<node name="telemetry2" pkg="flircam" type="telemetry2.py" respawn="true" />
+	<node name="ImageProc" pkg="flircam" type="ImageProc" respawn="true" />
 	<node name="FrameGrabber2" pkg="flircam" type="FrameGrabber2" respawn="true" />
 	<node name="director" pkg="flircam" type="director.py" />
 </launch>
