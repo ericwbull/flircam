@@ -54,6 +54,7 @@ class SerialPortROSBridge:
         self.serialSendLock = threading.Lock()
         self.okToSendSerial = False
         self.lastEgressSerialNumber = 0
+        self.badIngressMessageCount = 0
         
     def run(self):
         # Main thread.
@@ -185,6 +186,8 @@ class SerialPortROSBridge:
         self.SendDataToSerialPort(StreamID.REQUEST_SERIAL_SYNC,[])
 
     def WaitForOkToSend(self):
+        print "begin WaitForOkToSend"
+        
         # Spin until OkToSend or timeout
         # Only the ROS thread calls this
         # Depends upon main thread to asynchronously set okToSend.
@@ -193,6 +196,7 @@ class SerialPortROSBridge:
             timenow = time
 
         if (self.okToSendSerial):
+            print "end1 WaitForOkToSend"
             return
         
         # The following will keep sending sync until we ok to send means we don't need to send it
@@ -201,7 +205,10 @@ class SerialPortROSBridge:
             # During this time the main thread will set okToSendSerial=true
             time.sleep(0.2)
 
+        print "end2 WaitForOkToSend"
+
     def LockingTrySendSerialSync(self):
+        print "begin LockingTrySendSerialSync"
         serialSyncSent = False
         # Sends serial sync only if okToSend is found to be false.
         # If serial sync is found to be true, then no need to send sync, and the caller which was
@@ -209,10 +216,12 @@ class SerialPortROSBridge:
         self.serialSendLock.acquire(True)
         if (self.okToSendSerial == False):
             self.SendSerialSync()
-        else:
-            # This is good we don't need to send another sync message
             serialSyncSent = True
+        else:
+            pass
+            # This is good we don't need to send another sync message
         self.serialSendLock.release()
+        print "end LockingTrySendSerialSync={}".format(serialSyncSent)
         return serialSyncSent
 
     def LockingTrySendDataToSerialPort(self, streamId, data):
@@ -220,7 +229,7 @@ class SerialPortROSBridge:
         self.serialSendLock.acquire(True)
         if (self.okToSendSerial == True):
             self.SendDataToSerialPort(streamId, data)
-            dataSent = true
+            dataSent = True
         self.serialSendLock.release()
         return dataSent
 
@@ -228,8 +237,8 @@ class SerialPortROSBridge:
         # ROS thread calls this
         # Try sending once, and then invoke the waiting code if the send was blocked
         # This should not execute the loop more than once.
-        while False == LockingTrySendDataToSerialPort(self, streamId, data):
-            self.WaitForOKToSend()
+        while False == self.LockingTrySendDataToSerialPort(streamId, data):
+            self.WaitForOkToSend()
 
     def SendDataToSerialPort(self, streamId, data):
         # Only ROS calls this.  Main thread never transmits on serial egress directly -- it goes through ROS thread to transmit
@@ -238,13 +247,20 @@ class SerialPortROSBridge:
         # Implies that a stream of identically incrementing acknowledgements on ingress is expected.
         # OkToSend means ok to send *one* message only.
         msg = "{:02x}".format(streamId.value)
+#        print "sdtsp streamId={}".format(streamId.value)
         for b in data:
+#            print "sdtsp b={}".format(b)
             msg += "{:02x}".format(b)
 
         # increment before putting into the message
-        self.lastEgressSerialNumber += 1
+        if (self.lastEgressSerialNumber == 255):
+            self.lastEgressSerialNumber = 0
+        else:
+            self.lastEgressSerialNumber += 1
+            
         self.okToSendSerial = False
         # Moteino must return ack for this serial number before another message can be sent from ROS thread
+#        print "sdtsp SN={}".format(self.lastEgressSerialNumber)
         msg += "{:02x}".format(self.lastEgressSerialNumber)
         self.ser.write(msg)        
         self.ser.write('\n')

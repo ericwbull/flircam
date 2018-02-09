@@ -139,7 +139,7 @@ class TelemetryNode:
         downlink.verifyReceipt = False
         downlink.data = [num]
         downlink.data.extend(map(ord,fileData))
-        time.sleep(1)
+#        time.sleep(1)
         self.pubDownlink.publish(downlink)
 
     def sendDetectionMessageToDownlink(self, msg):

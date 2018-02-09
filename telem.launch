@@ -1,0 +1,4 @@
+<launch>
+	<node name="SerialPortROSBridge" pkg="flircam" type="SerialPortROSBridge.py" respawn="true" />
+	<node name="telemetry2" pkg="flircam" type="telemetry2.py" respawn="true" />
+</launch>
