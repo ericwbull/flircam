@@ -14,4 +14,4 @@ rfkill block 1
 sleep 5
 #rfkill block 0
 
-roslaunch flircam flircam.launch
+roslaunch flircam flircam.launch &

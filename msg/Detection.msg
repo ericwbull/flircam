@@ -1,5 +1,6 @@
 uint32 imageId
-uint32 signalStrength
+uint32 detectionCount
 bool detection
 bool safe
-uint32[10] signalHistogram
+bool error
+

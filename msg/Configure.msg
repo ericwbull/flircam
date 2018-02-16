@@ -1,4 +1,4 @@
 uint16 pixelChangeThreshold
-uint32 detectionThreshold
-uint32 safeThreshold
-uint32[10] signalHistogramWeight
+uint8 maxNeighborSpan
+uint8 neighborDetectionSpan
+uint8 neighborDetectionCountThreshold

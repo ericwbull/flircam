@@ -27,9 +27,8 @@ def ImageRequestReceived(request, telemetryNode):
     telemetryNode.doSendImage(request)
 
 def DetectionReceived(data, telemetryNode):
-    print "imageId={} signalStength={} detection={} safe={} signalHistogram={}".format(data.imageId, data.signalStrength, data.detection, data.safe, ','.join(str(x) for x in data.signalHistogram))
+    print "imageId={} detectionCount={} detection={} safe={} error={}".format(data.imageId, data.detectionCount, data.detection, data.safe, data.error)
 
-#    telemetryNode.sendDetectionMessageToSerialPort(data)
 
     bitNum = data.imageId - 1
     if data.safe:
@@ -86,6 +85,7 @@ class TelemetryNode:
         self.count = 0
         self.detectionBits = [False for x in range(70)]
         self.safeBits = [False for x in range(70)]
+#        self.errorBits = [False for x in range(60)]
 
         rospy.init_node('TelemetryNode', anonymous=True)
         rospy.Subscriber('image_request', ImageRequest, ImageRequestReceived, self)
@@ -132,7 +132,7 @@ class TelemetryNode:
         if (pos + size > endPos):
             size = endPos - pos
 
-        print "SendDetectionBlock pos={} size={}".format(pos,size)
+        print "Block filename={} pos={} size={}".format(fileName,pos,size)
         fileData = imageFile.read(size)
         downlink = DownlinkData()
         downlink.streamId = StreamID.RETURN_IMAGE.value
@@ -142,18 +142,18 @@ class TelemetryNode:
 #        time.sleep(1)
         self.pubDownlink.publish(downlink)
 
-    def sendDetectionMessageToDownlink(self, msg):
-        downlink = DownlinkData()
-        downlink.streamId = StreamID.RETURN_DETECTION.value
-        downlink.data = bytearray(chr(0)*50)
-        downlink.verifyReceipt = False
+#    def sendDetectionMessageToDownlink(self, msg):
+#        downlink = DownlinkData()
+#        downlink.streamId = StreamID.RETURN_DETECTION.value
+#        downlink.data = bytearray(chr(0)*50)
+#        downlink.verifyReceipt = False
         
-        struct.pack_into('>IIBB', downlink.data, 0, msg.imageId, msg.signalStrength, msg.detection, msg.safe)
-        i = 0
-        for h in msg.signalHistogram:
-            struct.pack_into('>I', downlink.data, 10 + 4 * i, h)
-            i += 1
-        self.pubDownlink.publish(downlink)
+#        struct.pack_into('>IIBB', downlink.data, 0, msg.imageId, msg.signalStrength, msg.detection, msg.safe)
+#        i = 0
+#        for h in msg.signalHistogram:
+#            struct.pack_into('>I', downlink.data, 10 + 4 * i, h)
+#            i += 1
+#        self.pubDownlink.publish(downlink)
 
     def sendSafeDetectArrayToDownlink(self,imageId):
         downlink = DownlinkData()

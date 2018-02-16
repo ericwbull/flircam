@@ -147,6 +147,8 @@ void ReceiveBondId(const std_msgs::String::ConstPtr& msg)
   g_bondcount++;
 }
 
+static std::vector<uint16_t> g_flatfield(60*80); // cam.width() * cam.height());
+
 void SaveImage(const std_msgs::UInt32::ConstPtr& msg, CamPub& camPub)
 {
   // If this function runs for more than 10 seconds, then the watchdog will terminate the process.
@@ -184,7 +186,6 @@ void SaveImage(const std_msgs::UInt32::ConstPtr& msg, CamPub& camPub)
     // Define frame
     static std::vector<uint16_t> frame(60*80); // cam.width() * cam.height());
 
-    static std::vector<uint16_t> s_flatfield(60*80); // cam.width() * cam.height());
 
 
     // Stream frames
@@ -215,7 +216,7 @@ void SaveImage(const std_msgs::UInt32::ConstPtr& msg, CamPub& camPub)
     if (saveToFile)
     {
         // subtract flat field
-        std::transform(frame.begin(), frame.end(), s_flatfield.begin(), frame.begin(), ImageUtil::truncated_minus());
+        std::transform(frame.begin(), frame.end(), g_flatfield.begin(), frame.begin(), ImageUtil::truncated_minus());
 
         uint16_t minValue = 0;
         uint16_t maxValue = 0;
@@ -251,7 +252,8 @@ void SaveImage(const std_msgs::UInt32::ConstPtr& msg, CamPub& camPub)
 
         std::cout << "save flat field minValue=" << minValue <<  std::endl;
         // Save as flat field
-        s_flatfield = frame;
+        g_flatfield = frame;
+	ImageUtil::WriteImage(0, g_flatfield);
     }
 }
 
@@ -266,6 +268,8 @@ int main(int argc, char** argv)
     std::cout << "FrameGrabber2 hello"<< std::endl;
     // Open camera connection
     CamPub camPub;
+
+    ImageUtil::ReadImage(0, g_flatfield);
 
     ros::init(argc, argv, "FrameGrabber2");
   

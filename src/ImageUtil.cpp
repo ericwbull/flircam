@@ -89,6 +89,7 @@ bool WriteImage(unsigned int imageId, const std::vector<uint16_t>& d)
   return WriteImageDataToFile(GetImageFileName(imageId).c_str(),d);
 }
 
+
 bool WritePGM(unsigned int imageId, const std::vector<uint16_t>& d, const char* ext)
 {
   std::string imageFileName = GetImageFileName(imageId);

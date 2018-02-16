@@ -16,15 +16,16 @@ class ImageCapture:
         rospy.init_node('ImageCapture', anonymous=True)
         
     def run(self):
-        time.sleep(60)
-        self.acquireFlatfield()
+#        self.acquireFlatfield()
+#        time.sleep(60)
         while True:
             time.sleep(120)
+            self.acquireFlatfield()
 #            raw_input("Press enter")
 #            self.pointAndCapture(0,0,92)
             self.sweep()
             self.count += 1
-        
+
     def capture(self, frameNum):
         self.pubSaveImage.publish(frameNum)
         print "{}: frame={}".format(self.count, frameNum)
@@ -46,6 +47,7 @@ class ImageCapture:
         
     def acquireFlatfield(self):
         self.point(0,0)
+        time.sleep(5)
         self.pointAndCapture(0,25,0)
         self.point(0,0)
 
@@ -57,10 +59,10 @@ class ImageCapture:
         
         for x in range(-90,91,20):
             if sweepUp:
-                yrange = range(-90,1,15)
+                yrange = range(-90,-14,15)
                 sweepUp=False
             else:
-                yrange = range(0,-91,-15)
+                yrange = range(15,-91,-15)
                 sweepUp=True
                     
             for y in yrange:
