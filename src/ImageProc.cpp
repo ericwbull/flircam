@@ -147,7 +147,7 @@ void Configure(const flircam::Configure::ConstPtr& msg)
     std::cout << "neighborDetectionCountThreshold: " << g_neighborDetectionCountThreshold << std::endl;
 }
 
-void UpdateBaseline(int imageId, const std::vector<uint16_t> image)
+void UpdateBaseline(const flircam::ImageId& imageId, const std::vector<uint16_t> image)
 {
   // Apply maxVal of neighbors to create baseline from image
 
@@ -166,13 +166,30 @@ void UpdateBaseline(int imageId, const std::vector<uint16_t> image)
   ImageUtil::WritePGM(imageId, baseline, "new_baseline");
 }
 
-void ProcessImage(const std_msgs::UInt32::ConstPtr& msg)
+void PublishDetection(const flircam::ImageId& imageId, int detectionCount)
 {
+  flircam::Detection detectMsg;
 
-    unsigned int imageId = msg->data;
+  detectMsg.imageId = imageId;
+  detectMsg.detection = detectionCount > 0;
+  detectMsg.safe = detectionCount == 0;
+  detectMsg.error = detectionCount < 0;
+  detectMsg.detectionCount = detectionCount;
+  g_pubDetection.publish(detectMsg);
+}
 
-    std::cout << "process image " << imageId << std::endl;
+void ProcessImage(const flircam::ImageId::ConstPtr& msg)
+{
+    const flircam::ImageId& imageId = *msg;
+    std::cout << "process image " << ImageUtil::ImageIdToString(imageId) << std::endl;
 
+    if (imageId.endCollection)
+      {
+	// No data to process
+	PublishDetection(imageId, 0);
+	return;
+      }
+    
     std::vector<uint16_t> image;
     std::vector<uint16_t> baseline;
     ImageUtil::ReadImage(imageId, image);
@@ -210,22 +227,14 @@ void ProcessImage(const std_msgs::UInt32::ConstPtr& msg)
 	
         //
         // Publish detection result always
-        flircam::Detection detectMsg;
-
-	detectMsg.imageId = imageId;
-        detectMsg.detection = detectionCount > 0;
-        detectMsg.safe = detectionCount == 0;
-        detectMsg.error = detectionCount < 0;
-        detectMsg.detectionCount = detectionCount;
+	PublishDetection(imageId, detectionCount);
 	//        detectMsg.signalHistogram = histogram;
 
         // If safe (not much change in the image), then update the baseline.
-        if (detectMsg.safe)
+        if (detectionCount == 0)
         {
             updateBaseline = true;
         }
-
-        g_pubDetection.publish(detectMsg);
     }
 
 
@@ -258,7 +267,7 @@ int main(int argc, char** argv)
     ros::NodeHandle n;
 
     g_pubDetection =  n.advertise<flircam::Detection>("detection", 10);
-    ros::Subscriber subImageDone = n.subscribe<std_msgs::UInt32>("image_done", 10, ProcessImage);
+    ros::Subscriber subImageDone = n.subscribe<flircam::ImageId>("image_done", 10, ProcessImage);
     ros::Subscriber subConfigure = n.subscribe<flircam::Configure>("configure", 10, Configure);
 
     std::cout << "start ros spin" << std::endl;

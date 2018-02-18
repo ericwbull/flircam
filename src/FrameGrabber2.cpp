@@ -44,10 +44,9 @@
 #include "ros/ros.h"
 #include "std_msgs/String.h"
 #include "std_msgs/UInt32.h"
+#include "flircam/ImageId.h"
 
 #include "ImageUtil.h"
-
-#include "bondcpp/bond.h"
 
 class WatchDog
 {
@@ -131,26 +130,12 @@ struct CamPub
   
 };
 
-bond::Bond* g_pBond = 0;
-int g_bondcount = 0;
-
-void ReceiveBondId(const std_msgs::String::ConstPtr& msg)
-{
-  std::cout << g_bondcount << ": FrameGrabber bonding with id=" << msg->data << std::endl;
-  if (g_pBond)
-    {
-      g_pBond->breakBond();
-    }
-  delete g_pBond;
-  g_pBond = new bond::Bond("frame_grabber_monitor", msg->data);
-  g_pBond->start();
-  g_bondcount++;
-}
 
 static std::vector<uint16_t> g_flatfield(60*80); // cam.width() * cam.height());
 
-void SaveImage(const std_msgs::UInt32::ConstPtr& msg, CamPub& camPub)
+void SaveImage(const flircam::ImageId::ConstPtr& msg, CamPub& camPub)
 {
+  const flircam::ImageId& imageId = *msg;
   // If this function runs for more than 10 seconds, then the watchdog will terminate the process.
   WatchDog watchDog(10);
   
@@ -164,56 +149,52 @@ void SaveImage(const std_msgs::UInt32::ConstPtr& msg, CamPub& camPub)
       exit(-1);
     }
     first = false;
+
+    // Read flatfield from file
+    // This is in case we restarted after a crash
+    flircam::ImageId flatFieldImageId = imageId;
+    flatFieldImageId.frameNumber = 0;
+    ImageUtil::ReadImage(flatFieldImageId, g_flatfield);
   }
 
   LeptonType lp_type = lePi.GetType();
   LeptonCameraConfig lp_config(lp_type);
   
-    unsigned int imageId = msg->data;
-    if (imageId == 99)
+    unsigned int frameNum = imageId.frameNumber;
+    if (frameNum == 99)
       {
 	// Test what happens if gets struck here for a long time.
 	sleep(100);
       }
     
-    bool saveToFile = true;
-    if (imageId == 0)
+    bool isFlatField = false;
+    if (frameNum == 0)
     {
-        saveToFile = false;
+        isFlatField = false;
     }
-
 
     // Define frame
     static std::vector<uint16_t> frame(60*80); // cam.width() * cam.height());
 
+    // If end collection, then tell the camera to shutdown.
+    if (imageId.endCollection)
+      {
+	// Forward to ImageProc.  This is just the end of collectoin message, no image data was saved.
+	flircam::ImageId pubMsg;
+	pubMsg = imageId;
+	camPub.pub.publish(pubMsg);
+      }
+    else
+      {
+	// Stream frames
+	int frame_nb{0};
 
+	// Frame request
+	lePi.GetFrame(&frame[0], FRAME_U16);
+      }
+    
 
-    // Stream frames
-    int frame_nb{0};
-
-    // Frame request
-    lePi.GetFrame(&frame[0], FRAME_U16);
-    //    if (cam.hasFrame()) {
-    //    cam.getFrameU16(frame);
-    //    ++frame_nb;
-    //}
-    //else
-    //{
-    //    std::cout << "no frame" << std::endl////;
-    //	camPub.restart();
-	//	cam.sendCommand(
-    //        return;
-    //    }
-    if (0) {
-      if (!lePi.CloseConnection())
-	{
-	  std::cout << "failed to close connectoin" << std::endl;
-	  exit(-1);
-	}
-    }    
-
-
-    if (saveToFile)
+    if (!isFlatField)
     {
         // subtract flat field
         std::transform(frame.begin(), frame.end(), g_flatfield.begin(), frame.begin(), ImageUtil::truncated_minus());
@@ -235,14 +216,15 @@ void SaveImage(const std_msgs::UInt32::ConstPtr& msg, CamPub& camPub)
 
         if (ImageUtil::WriteImage(imageId,frame))
         {
-            std_msgs::UInt32 pubMsg;
-            pubMsg.data = imageId;
+            flircam::ImageId pubMsg;
+            pubMsg = imageId;
             camPub.pub.publish(pubMsg);
         }
     }
     else
     {
-        auto iterMin = std::min_element(frame.begin(), frame.end());
+      // Flatfield
+      auto iterMin = std::min_element(frame.begin(), frame.end());
         uint16_t minValue = *iterMin;
 
         for (auto& item: frame)
@@ -253,7 +235,9 @@ void SaveImage(const std_msgs::UInt32::ConstPtr& msg, CamPub& camPub)
         std::cout << "save flat field minValue=" << minValue <<  std::endl;
         // Save as flat field
         g_flatfield = frame;
-	ImageUtil::WriteImage(0, g_flatfield);
+	flircam::ImageId flatFieldImageId = imageId;
+	flatFieldImageId.frameNumber = 0;
+	ImageUtil::WriteImage(flatFieldImageId, g_flatfield);
     }
 }
 
@@ -266,31 +250,22 @@ void SaveImage(const std_msgs::UInt32::ConstPtr& msg, CamPub& camPub)
 int main(int argc, char** argv)
 {
     std::cout << "FrameGrabber2 hello"<< std::endl;
-    // Open camera connection
     CamPub camPub;
-
-    ImageUtil::ReadImage(0, g_flatfield);
 
     ros::init(argc, argv, "FrameGrabber2");
   
     ros::NodeHandle n;
 
-    //    ros::Subscriber bondSub = n.subscribe<std_msgs::String>("frame_grabber_bond_id", 1, ReceiveBondId);
-
 
     auto SaveImageBoundFunction = boost::bind(SaveImage,_1, std::ref(camPub));
 
-    camPub.pub = n.advertise<std_msgs::UInt32>("image_done", 10);
-    ros::Subscriber saveImagesub = n.subscribe<std_msgs::UInt32>("save_image", 10, SaveImageBoundFunction);
+    camPub.pub = n.advertise<flircam::ImageId>("image_done", 10);
+    ros::Subscriber saveImagesub = n.subscribe<flircam::ImageId>("save_image", 10, SaveImageBoundFunction);
 
 
     std::cout << "start ros spin" << std::endl;
     ros::spin();
 
-    //    if (g_pBond)
-    //      {
-    //	g_pBond->breakBond();
-    //      }
 
     return EXIT_SUCCESS;
 }

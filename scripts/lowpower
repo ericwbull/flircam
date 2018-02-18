@@ -1,6 +1,4 @@
 #!/bin/bash
-rm -rf /tmp/flircam/0
-pigpiod
 
 # hdmi off
 tvservice -o
@@ -16,4 +14,3 @@ rfkill block 1
 
 #rfkill block 0
 
-roslaunch flircam flircam.launch &

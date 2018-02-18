@@ -26,24 +26,37 @@ class StreamID(Enum):
 def ImageRequestReceived(request, telemetryNode):
     telemetryNode.doSendImage(request)
 
+def ImageIdToString(imageId):
+    return "{}/{}.{}".format(imageId.collectionNumber, imageId.frameNumber, imageId.serialNumber)
+
 def DetectionReceived(data, telemetryNode):
-    print "imageId={} detectionCount={} detection={} safe={} error={}".format(data.imageId, data.detectionCount, data.detection, data.safe, data.error)
+    print "imageId={} detectionCount={} detection={} safe={} error={}".format(ImageIdToString(data.imageId), data.detectionCount, data.detection, data.safe, data.error)
 
+    if (self.beginCollection):
+        self.beginCollection = False;
+        self.detectionBits = [False for x in range(70)]
+        self.safeBits = [False for x in range(70)]
 
-    bitNum = data.imageId - 1
-    if data.safe:
-        telemetryNode.safeBits[bitNum]=True
-    else:
-        telemetryNode.safeBits[bitNum]=False
-
-    if data.detection:
-        telemetryNode.detectionBits[bitNum]=True
-    else:
-        telemetryNode.detectionBits[bitNum]=False
+    if (data.imageId.endCollection):
+        # detect bits will be reset when the next detection is received
+        self.beginCollection = True
+        # ToDO: send something to downlink?
         
-    telemetryNode.count += 1
+    else:
+        bitNum = data.imageId.frameNumber - 1
+        if data.safe:
+            telemetryNode.safeBits[bitNum]=True
+        else:
+            telemetryNode.safeBits[bitNum]=False
 
-    telemetryNode.sendSafeDetectArrayToDownlink(data.imageId)
+        if data.detection:
+            telemetryNode.detectionBits[bitNum]=True
+        else:
+            telemetryNode.detectionBits[bitNum]=False
+        
+        telemetryNode.count += 1
+
+        telemetryNode.sendSafeDetectArrayToDownlink(data.imageId)
 
 
 def BoolListToByteList(mylist):
@@ -70,9 +83,10 @@ def BoolListToByteList(mylist):
     return byteList
 
 def GetCurrentImageFileName(imageId):
-    majorId = imageId >> 65536
-    minorId = imageId & 0xffff
-    return "/tmp/flircam/{0}/{1}".format(majorId,minorId)
+    folderNum = imageId.collectionNumber
+    frameNum = imageId.frameNumber
+    serialNum = imageId.serialNumber
+    return "/tmp/flircam/{}/{}.{}".format(folderNum, frameNum, serialNum)
 def GetBaselineImageFileName(imageId):
     return "{0}.baseline".format(GetCurrentImageFileName(imageId))
 def GetDetectionImageFileName(imageId):
@@ -83,8 +97,12 @@ def GetDetectionImageFileName(imageId):
 class TelemetryNode:
     def __init__(self):
         self.count = 0
-        self.detectionBits = [False for x in range(70)]
-        self.safeBits = [False for x in range(70)]
+
+        # these are the latched safe/detect bits for the current collection only.
+        # all bits initially False.  They latch True until end of collection 
+        self.detectionBits = []
+        self.safeBits = []
+        self.beginCollection = True
 #        self.errorBits = [False for x in range(60)]
 
         rospy.init_node('TelemetryNode', anonymous=True)
@@ -161,7 +179,7 @@ class TelemetryNode:
         data = bytearray(chr(0)*22)
         downlink.verifyReceipt = False
 
-        struct.pack_into('>I', data, 0, imageId)
+        struct.pack_into('>HHH', data, 0, imageId.collectionNumber, imageId.frameNumber, imageId.serialNumber)
         
         detectBytes = BoolListToByteList(self.detectionBits)
         i = 4

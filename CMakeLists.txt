@@ -57,6 +57,7 @@ add_message_files(
    Block.msg
    DownlinkData.msg
    ImageRequest.msg
+   ImageId.msg
 )
 
 ## Generate services in the 'srv' folder
@@ -140,10 +141,10 @@ ${catkin_INCLUDE_DIRS}
 ## Declare a C++ executable
 ## With catkin_make all packages are built within a single CMake context
 ## The recommended prefix ensures that target names across packages don't collide
-add_executable(FrameGrabber src/FrameGrabber.cpp src/ImageUtil.cpp)
 add_executable(FrameGrabber2 src/FrameGrabber2.cpp src/ImageUtil.cpp)
 add_executable(ImageProc src/ImageProc.cpp src/ImageUtil.cpp)
 add_dependencies(ImageProc flircam_generate_messages_cpp)
+add_dependencies(FrameGrabber2 flircam_generate_messages_cpp)
 
 ## Rename C++ executable without prefix
 ## The above recommended prefix causes long target names, the following renames the
@@ -156,15 +157,6 @@ add_dependencies(ImageProc flircam_generate_messages_cpp)
 # add_dependencies(${PROJECT_NAME}_node ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 
 ## Specify libraries to link a library or executable target against
-target_link_libraries(FrameGrabber
-  ${catkin_LIBRARIES}
-  boost_filesystem
-  /home/pi/git/LePi/install/lib/libleptonAPI.a
-  /home/pi/git/LePi/install/lib/libleptonSDK.a
-  png
-  bcm2835
-  pthread
-)
 target_link_libraries(FrameGrabber2
   ${catkin_LIBRARIES}
   boost_filesystem

@@ -1,0 +1,4 @@
+uint16 collectionNumber
+uint16 frameNumber
+uint16 serialNumber
+bool endCollection

@@ -7,9 +7,21 @@ from std_msgs.msg import String
 from std_msgs.msg import UInt32
 from flircam.msg import PanTiltPos
 from flircam.msg import ImageId
+from flircam.msg import Detection
+
+def ImageIdToString(imageId):
+    return "{}/{}.{}".format(imageId.collectionNumber, imageId.frameNumber, imageId.serialNumber)
+
+def DetectionReceived(data, imageCaptureNode):
+    print "!detection imageId={} detectionCount={} detection={} safe={} error={}"\
+        .format(ImageIdToString(data.imageId), data.detectionCount, data.detection, data.safe, data.error)
+    # redirect the camera to the detection frame, and then each neighboring frame
+    # collect ends when we have imaged each of the frames at least once,
+    # AND no detection in the last image of each frame
 
 class ImageCapture:
     def __init__(self):
+        rospy.Subscriber('detection', Detection, DetectionReceived, self)
         self.pubPanTilt = rospy.Publisher('pantilt_position_command', PanTiltPos, queue_size=10)
         self.pubSaveImage = rospy.Publisher('save_image', ImageId, queue_size=10)
         self.count=0
@@ -19,13 +31,13 @@ class ImageCapture:
 #        self.acquireFlatfield()
 #        time.sleep(60)
         while True:
-            time.sleep(120)
+#            time.sleep(120)
             self.acquireFlatfield()
 #            raw_input("Press enter")
 #            self.pointAndCapture(0,0,92)
             self.sweep()
             self.count += 1
-
+            
     def capture(self, frameNum):
 
         imageId = ImageId()

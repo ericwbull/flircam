@@ -99,12 +99,14 @@ class SerialPortROSBridge:
         # Only the main thread calls this.
         # publises ROS message.  Does not send serial.
         imageRequest = ImageRequest()
-        imageRequest.id = data[0]
-        imageRequest.type = data[1]
-        imageRequest.blockSize = data[2]
+        imageRequest.id.collectionNumber = (data[1] << 8) | data[0]
+        imageRequest.id.frameNumber = (data[3] << 8) | data[2]
+        imageRequest.id.serialNumber = (data[5] << 8) | data[4]
+        imageRequest.type = data[6]
+        imageRequest.blockSize = data[7]
         imageRequest.blockList = []
-        rangeListSize = data[3]
-        rangeData = data[4:]
+        rangeListSize = data[8]
+        rangeData = data[9:]
         for i in range(0, rangeListSize):
             block = Block()
             block.start = rangeData[i*2]

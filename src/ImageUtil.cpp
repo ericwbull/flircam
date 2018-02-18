@@ -41,19 +41,17 @@ bool WriteImageDataToFile(const char* file_name, const std::vector<T>& frame )
   return true;
 }
 
-std::string GetImageFileName(unsigned int imageId)
+std::string GetImageFileName(const flircam::ImageId& imageId)
 {
-  // folder number
-  unsigned int majorId = imageId >> 16;
-
-  // file number
-  unsigned int minorId = imageId & 0xffff;
+  unsigned int folderNumber = imageId.collectionNumber;
+  unsigned int frameNumber = imageId.frameNumber;
+  unsigned int serialNumber = imageId.serialNumber;
 
   std::ostringstream ossDir;
   std::ostringstream ossFilename;
 
-  ossDir << "/tmp/flircam/" << majorId;
-  ossFilename << "/tmp/flircam/" << majorId << '/' << minorId;
+  ossDir << "/tmp/flircam/" << folderNumber;
+  ossFilename << "/tmp/flircam/" << folderNumber << '/' << frameNumber << '.' << serialNumber;
 
   std::string dirname = ossDir.str(); 
   std::string fname = ossFilename.str(); 
@@ -65,32 +63,38 @@ std::string GetImageFileName(unsigned int imageId)
   return fname;
 }
 
-std::string GetBaselineFileName(unsigned int imageId)
+std::string ImageIdToString(const flircam::ImageId& imageId)
+{
+  return GetImageFileName(imageId);
+}
+
+  
+std::string GetBaselineFileName(const flircam::ImageId& imageId)
 {
   std::string imageFileName = GetImageFileName(imageId);
   return imageFileName + ".baseline";
 }
-std::string GetDetectionMapFileName(unsigned int imageId)
+std::string GetDetectionMapFileName(const flircam::ImageId& imageId)
 {
   std::string imageFileName = GetImageFileName(imageId);
   return imageFileName + ".detection";
 }
 
 
-bool ReadBaseline(unsigned int imageId, std::vector<uint16_t>&baseline)
+bool ReadBaseline(const flircam::ImageId& imageId, std::vector<uint16_t>&baseline)
 {
   //  return false if there is not baseline.
   // Baseline file is /tmp/flircam/0/1.baseline
   return ReadImageDataFromFile(GetBaselineFileName(imageId).c_str(),baseline);
 }
 
-bool WriteImage(unsigned int imageId, const std::vector<uint16_t>& d)
+bool WriteImage(const flircam::ImageId& imageId, const std::vector<uint16_t>& d)
 {
   return WriteImageDataToFile(GetImageFileName(imageId).c_str(),d);
 }
 
 
-bool WritePGM(unsigned int imageId, const std::vector<uint16_t>& d, const char* ext)
+bool WritePGM(const flircam::ImageId& imageId, const std::vector<uint16_t>& d, const char* ext)
 {
   std::string imageFileName = GetImageFileName(imageId);
   imageFileName += ".";
@@ -99,7 +103,7 @@ bool WritePGM(unsigned int imageId, const std::vector<uint16_t>& d, const char* 
     
   return WriteImageDataToPGMFile(imageFileName.c_str(),d);
 }
-bool WritePBM(unsigned int imageId, const std::vector<uint16_t>& d, const char* ext)
+bool WritePBM(const flircam::ImageId& imageId, const std::vector<uint16_t>& d, const char* ext)
 {
   std::string imageFileName = GetImageFileName(imageId);
   imageFileName += ".";
@@ -109,17 +113,17 @@ bool WritePBM(unsigned int imageId, const std::vector<uint16_t>& d, const char* 
   return WriteImageDataToPBMFile(imageFileName.c_str(),d);
 }
 
-bool ReadImage(unsigned int imageId, std::vector<uint16_t>& d)
+bool ReadImage(const flircam::ImageId& imageId, std::vector<uint16_t>& d)
 {
   return ReadImageDataFromFile(GetImageFileName(imageId).c_str(),d);
 }
 
-bool WriteBaseline(unsigned int imageId, const std::vector<uint16_t>&d)
+bool WriteBaseline(const flircam::ImageId& imageId, const std::vector<uint16_t>&d)
 {
   return WriteImageDataToFile(GetBaselineFileName(imageId).c_str(),d);
 }
 
-bool WriteDetectionMap(unsigned int imageId, const std::vector<uint16_t>&d)
+bool WriteDetectionMap(const flircam::ImageId& imageId, const std::vector<uint16_t>&d)
 {
   std::vector<uint8_t> bitmap(d.size() / 8);
   int byteNum = 0;

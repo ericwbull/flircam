@@ -1,4 +1,4 @@
-uint32 imageId
+ImageId imageId
 uint32 detectionCount
 bool detection
 bool safe

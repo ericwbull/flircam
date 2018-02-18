@@ -4,18 +4,21 @@
 #include <stdint.h>
 #include <vector>
 #include <functional>
+#include <flircam/ImageId.h>
+#include <string>
 
 namespace ImageUtil
 {
-bool WriteImage(unsigned int imageId, const std::vector<uint16_t>& frame );
-bool ReadImage(unsigned int imageId,std::vector<uint16_t>& frame );
+bool WriteImage(const flircam::ImageId&, const std::vector<uint16_t>& frame );
+bool ReadImage(const flircam::ImageId&,std::vector<uint16_t>& frame );
 int write_png_file(const char* file_name, std::vector<uint16_t>& frame );
-bool ReadBaseline(unsigned int imageId, std::vector<uint16_t>&baseline);
-bool WriteBaseline(unsigned int imageId, const std::vector<uint16_t>&d);
-bool WriteDetectionMap(unsigned int imageId, const std::vector<uint16_t>&d);
-bool WritePBM(unsigned int imageId, const std::vector<uint16_t>&d, const char* ext);
-bool WritePGM(unsigned int imageId, const std::vector<uint16_t>&d, const char* ext);
-
+bool ReadBaseline(const flircam::ImageId&, std::vector<uint16_t>&baseline);
+bool WriteBaseline(const flircam::ImageId&, const std::vector<uint16_t>&d);
+bool WriteDetectionMap(const flircam::ImageId&, const std::vector<uint16_t>&d);
+bool WritePBM(const flircam::ImageId&, const std::vector<uint16_t>&d, const char* ext);
+bool WritePGM(const flircam::ImageId&, const std::vector<uint16_t>&d, const char* ext);
+std::string ImageIdToString(const flircam::ImageId&);
+ 
 struct truncated_minus: std::binary_function<uint16_t, uint16_t, uint16_t>
 {
   uint16_t operator()(uint16_t a, uint16_t b) const
