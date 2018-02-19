@@ -29,35 +29,6 @@ def ImageRequestReceived(request, telemetryNode):
 def ImageIdToString(imageId):
     return "{}/{}.{}".format(imageId.collectionNumber, imageId.frameNumber, imageId.serialNumber)
 
-def DetectionReceived(data, telemetryNode):
-    print "imageId={} detectionCount={} detection={} safe={} error={}".format(ImageIdToString(data.imageId), data.detectionCount, data.detection, data.safe, data.error)
-
-    if (self.beginCollection):
-        self.beginCollection = False;
-        self.detectionBits = [False for x in range(70)]
-        self.safeBits = [False for x in range(70)]
-
-    if (data.imageId.endCollection):
-        # detect bits will be reset when the next detection is received
-        self.beginCollection = True
-        # ToDO: send something to downlink?
-        
-    else:
-        bitNum = data.imageId.frameNumber - 1
-        if data.safe:
-            telemetryNode.safeBits[bitNum]=True
-        else:
-            telemetryNode.safeBits[bitNum]=False
-
-        if data.detection:
-            telemetryNode.detectionBits[bitNum]=True
-        else:
-            telemetryNode.detectionBits[bitNum]=False
-        
-        telemetryNode.count += 1
-
-        telemetryNode.sendSafeDetectArrayToDownlink(data.imageId)
-
 
 def BoolListToByteList(mylist):
     weight = 1
@@ -92,6 +63,8 @@ def GetBaselineImageFileName(imageId):
 def GetDetectionImageFileName(imageId):
     return "{0}.detection".format(GetCurrentImageFileName(imageId))
     
+def DetectionReceived(data, telemetryNode):
+    telemetryNode.DetectionReceived(data)
 
 # Transfers messages, bidirectionally, between the SerialStream.Server (the gateway.js web app is on the other side) and ROS (serial port hardware is on the other side)
 class TelemetryNode:
@@ -109,7 +82,36 @@ class TelemetryNode:
         rospy.Subscriber('image_request', ImageRequest, ImageRequestReceived, self)
         rospy.Subscriber('detection', Detection, DetectionReceived, self)
         self.pubDownlink = rospy.Publisher('downlink', DownlinkData, queue_size=200)
+
+    def DetectionReceived(self,data):
+        print "imageId={} detectionCount={} detection={} safe={} error={}".format(ImageIdToString(data.imageId), data.detectionCount, data.detection, data.safe, data.error)
+
+        if (self.beginCollection):
+            self.beginCollection = False;
+            self.detectionBits = [False for x in range(70)]
+            self.safeBits = [False for x in range(70)]
+
+        if (data.imageId.endCollection):
+        # detect bits will be reset when the next detection is received
+            self.beginCollection = True
+            # ToDO: Send to downlink? Does the gateway need to know that the collection ended?
         
+        else:
+            bitNum = data.imageId.frameNumber - 1
+            if data.safe:
+                self.safeBits[bitNum]=True
+            else:
+                self.safeBits[bitNum]=False
+
+            if data.detection:
+                self.detectionBits[bitNum]=True
+            else:
+                self.detectionBits[bitNum]=False
+        
+            self.count += 1
+
+            self.sendSafeDetectArrayToDownlink(data.imageId)
+
     def run(self):
         rate = rospy.Rate(10)
         print "Ready"

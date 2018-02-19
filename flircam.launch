@@ -5,5 +5,5 @@
 	<node name="telemetry2" pkg="flircam" type="telemetry2.py" respawn="true" />
 	<node name="ImageProc" pkg="flircam" type="ImageProc" respawn="true" />
 	<node name="FrameGrabber2" pkg="flircam" type="FrameGrabber2" respawn="true" />
-	<node name="director2" pkg="flircam" type="director2.py" />
+	<!-- node name="director2" pkg="flircam" type="director2.py" / -->
 </launch>

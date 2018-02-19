@@ -2,96 +2,70 @@
 
 import rospy
 import time
+import ImageCapture
 
 from std_msgs.msg import String
 from std_msgs.msg import UInt32
-from flircam.msg import PanTiltPos
-from flircam.msg import ImageId
 from flircam.msg import Detection
 
 def ImageIdToString(imageId):
     return "{}/{}.{}".format(imageId.collectionNumber, imageId.frameNumber, imageId.serialNumber)
 
-def DetectionReceived(data, imageCaptureNode):
-    print "!detection imageId={} detectionCount={} detection={} safe={} error={}"\
-        .format(ImageIdToString(data.imageId), data.detectionCount, data.detection, data.safe, data.error)
-    # redirect the camera to the detection frame, and then each neighboring frame
-    # collect ends when we have imaged each of the frames at least once,
-    # AND no detection in the last image of each frame
 
-class ImageCapture:
+def DetectionReceived(data, directorNode):
+    directorNode.DetectionReceived(data)
+
+class Director:
     def __init__(self):
-        rospy.Subscriber('detection', Detection, DetectionReceived, self)
-        self.pubPanTilt = rospy.Publisher('pantilt_position_command', PanTiltPos, queue_size=10)
-        self.pubSaveImage = rospy.Publisher('save_image', ImageId, queue_size=10)
         self.count=0
-        rospy.init_node('ImageCapture', anonymous=True)
+        (imagePositions, rowAngles, colAngles) = self.getPositionList()
+        flatAnglePos = tuple((25,0))
+        self.imageCapture = ImageCapture.ImageCapture(flatAnglePos, imagePositions, rowAngles, colAngles)
         
+        rospy.Subscriber('detection', Detection, DetectionReceived, self)
+        rospy.init_node('Director', anonymous=True)
+
+
+    def getPositionList(self):
+        posList = list()
+
+        # Make a list of the image frames and angles
+        colAngles = [h for h in range(-90,91,20)]
+        rowAngles = [v for v in range(-90,-14,15)]
+        
+        for row in range(len(rowAngles)):
+            for col in range(len(colAngles)):
+                posList.append(tuple((row,col)))
+
+        return tuple((posList, rowAngles, colAngles))
+                               
     def run(self):
-#        self.acquireFlatfield()
 #        time.sleep(60)
-        while True:
+        while not rospy.is_shutdown():
 #            time.sleep(120)
-            self.acquireFlatfield()
-#            raw_input("Press enter")
-#            self.pointAndCapture(0,0,92)
-            self.sweep()
+            self.imageCapture.requestAll()
+            # start the image capture thread going and wait for it to finish
+            # while waiting, the rospy subscriber may give imageCapture more requests 
+            self.imageCapture.doCollection(self.count)
             self.count += 1
+
+    def DetectionReceived(self, data):
+        print "!detection imageId={} detectionCount={} detection={} safe={} error={}"\
+        .format(ImageIdToString(data.imageId), data.detectionCount, data.detection, data.safe, data.error)
+        if data.detection:
+            self.imageCapture.requestFrameAndNeighbors(data.imageId.frameNumber,2)
             
-    def capture(self, frameNum):
-
-        imageId = ImageId()
-        imageId.collectionNumber=0
-        imageId.frameNumber=frameNum
-        imageId.serialNumber=0
-        imageId.endCollection=False
-        self.pubSaveImage.publish(imageId)
-        print "{}: frame={}".format(self.count, frameNum)
-        # Give camera some time to grab the image
-        time.sleep(1.5)
-        
-    def point(self, h, v):
-        pantilt=PanTiltPos()
-        pantilt.horizontalAngle=h
-        pantilt.verticalAngle=v
-        self.pubPanTilt.publish(pantilt)
-        print "{}: x={} y={}".format(self.count, h,v)
-        # Give servo some time to move
-        time.sleep(1)
-
-    def pointAndCapture(self, h, v, frm):
-        self.point(h, v)
-        self.capture(frm)
-        
-    def acquireFlatfield(self):
-        self.point(0,0)
-        time.sleep(5)
-        self.pointAndCapture(0,25,0)
-        self.point(0,0)
-
-    def sweep(self):
-        frameNum = 1
-        self.point(-90,-90)
-        time.sleep(5)
-        sweepUp=True
-        
-        for x in range(-90,91,20):
-            if sweepUp:
-                yrange = range(-90,-14,15)
-                sweepUp=False
-            else:
-                yrange = range(-15,-91,-15)
-                sweepUp=True
-                    
-            for y in yrange:
-                self.pointAndCapture(x,y,frameNum)
-                frameNum += 1
-        
+    # redirect the camera to the detection frame, and then each neighboring frame
+    # collection ends when all of the following are conditions are satisfied:
+    # - we have imaged each of the frames at least once
+    # - no detection in the last image of each frame
+    # - we have completed all requested frames (even if all frames have no detection status, if there are still more frames in the queue,
+    #   then we must continue collection until we empty the queue 
 
 if __name__ == '__main__':
     try:
-        controller = ImageCapture()
-        controller.run()
+        director = Director()
+        director.run()
     except rospy.ROSInterruptException:
         pass
 

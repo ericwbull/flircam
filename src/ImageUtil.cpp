@@ -71,8 +71,24 @@ std::string ImageIdToString(const flircam::ImageId& imageId)
   
 std::string GetBaselineFileName(const flircam::ImageId& imageId)
 {
-  std::string imageFileName = GetImageFileName(imageId);
-  return imageFileName + ".baseline";
+  // baseline is outside of the collection folder
+  unsigned int frameNumber = imageId.frameNumber;
+
+  std::ostringstream ossDir;
+  std::ostringstream ossFilename;
+
+  ossDir << "/tmp/flircam";
+  ossFilename << "/tmp/flircam/" << frameNumber << ".baseline";
+
+  std::string dirname = ossDir.str(); 
+  std::string fname = ossFilename.str(); 
+
+  boost::filesystem::create_directories(dirname.c_str());
+
+  //  std::cout << "dirname=" << dirname << std::endl;
+  //  std::cout << "fname=" << fname << std::endl;
+  return fname;
+
 }
 std::string GetDetectionMapFileName(const flircam::ImageId& imageId)
 {

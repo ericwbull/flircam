@@ -170,7 +170,7 @@ void SaveImage(const flircam::ImageId::ConstPtr& msg, CamPub& camPub)
     bool isFlatField = false;
     if (frameNum == 0)
     {
-        isFlatField = false;
+        isFlatField = true;
     }
 
     // Define frame
