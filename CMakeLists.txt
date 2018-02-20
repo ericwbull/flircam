@@ -165,7 +165,6 @@ target_link_libraries(FrameGrabber2
   png
   bcm2835
   pthread
-  bondcpp
 )
 
 target_link_libraries(ImageProc

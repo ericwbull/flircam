@@ -1,0 +1,4 @@
+<launch>
+	<node name="GatewaySerialPortROSBridge" pkg="flircam" type="GatewaySerialPortROSBridge.py" />
+	<node name="SerialStreamROSBridge" pkg="flircam" type="SerialStreamROSBridge.py" />
+</launch>

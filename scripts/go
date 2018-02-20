@@ -1,7 +1,7 @@
 #!/bin/bash
 rm -rf /tmp/flircam/*
 
-PIGPIOBIND=$(netstat | grep 8888)
+PIGPIOBIND=$(netstat | grep -P "\b8888\b")
 if [ "$PIGPIOBIND" != "" ]; then
     echo $PIGPIOBIND
     exit -1
