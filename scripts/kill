@@ -1,0 +1,6 @@
+#!/bin/bash
+
+sudo killall roslaunch
+#rosnode kill -a
+sudo killall pigpiod
+
