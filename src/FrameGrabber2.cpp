@@ -154,7 +154,7 @@ void SaveImage(const flircam::ImageId::ConstPtr& msg, CamPub& camPub)
     // This is in case we restarted after a crash
     flircam::ImageId flatFieldImageId = imageId;
     flatFieldImageId.frameNumber = 0;
-    ImageUtil::ReadImage(flatFieldImageId, g_flatfield);
+    ImageUtil::ReadBaseline(flatFieldImageId, g_flatfield);
   }
 
   LeptonType lp_type = lePi.GetType();
@@ -237,7 +237,7 @@ void SaveImage(const flircam::ImageId::ConstPtr& msg, CamPub& camPub)
         g_flatfield = frame;
 	flircam::ImageId flatFieldImageId = imageId;
 	flatFieldImageId.frameNumber = 0;
-	ImageUtil::WriteImage(flatFieldImageId, g_flatfield);
+	ImageUtil::WriteBaseline(flatFieldImageId, g_flatfield);
     }
 }
 

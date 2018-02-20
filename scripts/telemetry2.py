@@ -85,6 +85,7 @@ class TelemetryNode:
 
     def DetectionReceived(self,data):
         print "imageId={} detectionCount={} detection={} safe={} error={}".format(ImageIdToString(data.imageId), data.detectionCount, data.detection, data.safe, data.error)
+        sys.stdout.flush()
 
         if (self.beginCollection):
             self.beginCollection = False;
@@ -111,7 +112,7 @@ class TelemetryNode:
             self.count += 1
 
             self.sendSafeDetectArrayToDownlink(data.imageId)
-
+            
     def run(self):
         rate = rospy.Rate(10)
         print "Ready"
@@ -121,7 +122,8 @@ class TelemetryNode:
         print "SendImageRequest: id={} type={} blockSize={} rangeCount={}".format(r.id, r.type, r.blockSize, len(r.blockList))
         for b in r.blockList:
             self.SendImageBlockRange(r.id,r.type,r.blockSize,b.start,b.count)
-
+        sys.stdout.flush()
+            
     def SendImageBlockRange(self, imageId, imageType, blockSize, start, count):
         print "SendImageBlockRange start={} count={}".format(start, count)
         for i in range(start, start+count):
@@ -178,13 +180,13 @@ class TelemetryNode:
     def sendSafeDetectArrayToDownlink(self,imageId):
         downlink = DownlinkData()
         downlink.streamId = StreamID.RETURN_DETECTION_ARRAY.value
-        data = bytearray(chr(0)*22)
+        data = bytearray(chr(0)*24)
         downlink.verifyReceipt = False
 
         struct.pack_into('>HHH', data, 0, imageId.collectionNumber, imageId.frameNumber, imageId.serialNumber)
         
         detectBytes = BoolListToByteList(self.detectionBits)
-        i = 4
+        i = 6
         for b in detectBytes:
             data[i] = chr(b)
             i += 1

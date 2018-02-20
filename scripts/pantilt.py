@@ -14,14 +14,18 @@ def CommandReceived(data, controller):
 # Transfers messages, bidirectionally, between the SerialStream.Server (the gateway.js web app is on the other side) and ROS (serial port hardware is on the other side)
 class PanTiltController:
     def __init__(self):
-        self.pi = pigpio.pi()
         rospy.Subscriber('pantilt_position_command', PanTiltPos, CommandReceived, self)
         rospy.init_node('PanTiltController', anonymous=True)
         
     def run(self):
-        rate = rospy.Rate(10)
-        while not rospy.is_shutdown():
-            rate.sleep()
+        self.pi = pigpio.pi()
+        try:
+            rate = rospy.Rate(1)
+            while not rospy.is_shutdown():
+                rate.sleep()
+        except:
+            pass
+        self.pi.stop()
             
     def SetHorizontal(self,angle):
         # horizontal: 530 is 90 degrees is 2430 is -90 degrees

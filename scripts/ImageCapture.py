@@ -59,7 +59,7 @@ class CollectionThread(threading.Thread):
         
 
 class ImageCapture:
-    def __init__(self, flatfieldAnglePos, imagePos, servoRowAngles, servoColAngles):
+    def __init__(self, flatfieldAnglePos, imagePos, servoRowAngles, servoColAngles, servoDelay, cameraDelay):
         self.initImageFrames(imagePos, servoRowAngles, servoColAngles)
         
         self.printFrameMap()        
@@ -69,16 +69,30 @@ class ImageCapture:
         self.pubSaveImage = rospy.Publisher('save_image', ImageId, queue_size=10)
         self.collectionNum = 0
         self.lastCapturedFrame = False
+        self.delayBetweenFramesDefault = 0.1
+        self.delayBetweenFrames = self.delayBetweenFramesDefault
+        self.cameraDelay = cameraDelay
+        self.servoDelay = servoDelay
         # lock is for synchronizing the main thread with the ImageCapture thread
         self.lock = threading.Lock()
 
+    def resetFrameDelay(self):
+        self.delayBetweenFrames = self.delayBetweenFramesDefault
+
+    def setNextFrame(self,frameNum):
+        self.lastCapturedFrame = self.frames[frameNum-1]
+        
     def printFrameMap(self):
         for f in self.frames:
             print "num:{} row:{} col:{} h:{} v:{}".format(f.number,f.row,f.col,f.servoH,f.servoV)
 
         for r in range(self.maxRow+1):
             for c in range(self.maxCol+1):
-                print("{:>3}".format(self.frameGrid[r][c].number)),
+                if not self.frameGrid[r][c]:
+                    num='-'
+                else:
+                    num = self.frameGrid[r][c].number
+                print("{:>3}".format(num)),
             print("")
     def doCollection(self, num):
         # Create the collectoin thread and run it
@@ -163,6 +177,12 @@ class ImageCapture:
             # return the first frame with a request, or False if none
             return self.findFrameWithRequest(self.frames)
         else:
+            # See if the last captured frame has a request
+            f = self.findFrameWithRequest([self.lastCapturedFrame])
+            if f:
+                return f
+
+            # Look for request in neighbors
             ns = set()
             ns.update(self.frameNeighbors(self.lastCapturedFrame))
 
@@ -184,6 +204,7 @@ class ImageCapture:
     # This is the asynchronous thread that keeps processing requests until endCollection, and then it exits.
     def run(self):
         self.resetSerialNumbers()
+        self.delayBetweenFrames = self.delayBetweenFramesDefault
         # request flatfield
         self.acquireFlatfield()
         
@@ -192,16 +213,24 @@ class ImageCapture:
         while not rospy.is_shutdown() and not timeout:
             self.lock.acquire()
             f = self.nextFrame()
+            delay = self.delayBetweenFrames
             if f:
                 self.pointAndCapture(f)
                 self.lastCapturedFrame = f
                 f.request = False
                 watchDog = time.time()
             self.lock.release()
-            time.sleep(0.3)
+
             if time.time() - watchDog > 10:
                 timeout = True
-                print "No more frames to capture"
+                print "Done waiting for frame requests."
+            else:
+                if f:
+                    time.sleep(delay)
+                else:
+                    print "No more frames to capture."
+                    time.sleep(1)
+                
         
         # send endCollection
         self.publishEndCollection()
@@ -245,24 +274,31 @@ class ImageCapture:
         for f in self.frames:
             f.serialNumber = 0
             
-    def requestAll(self):
+    def requestAll(self, delay=0):
         self.lock.acquire()
+        if delay:
+            self.delayBetweenFrames = delay
         # Put all image frames in the requested state
         for f in self.frames:
             f.request = True
         self.lock.release()
 
-    def requestFrame(self, frameNum):
+    def requestFrame(self, frameNum, delay=0):
         # Put the one frame in the requested state
         frame = self.frames[frameNum-1]
         self.lock.acquire()
+        if delay:
+            self.delayBetweenFrames = delay
         frame.request = True
         self.lock.release()
 
-    def requestFrameAndNeighbors(self, frameNum, span=1):
+    def requestFrameAndNeighbors(self, frameNum, span=1, delay=0):
         # Put the frame and its neighbors in the requested state
         self.lock.acquire()
+        if delay:
+            self.delayBetweenFrames = delay
         frame = self.frames[frameNum-1]
+        frame.request = True
         for f in self.frameNeighbors(frame, span):
             f.request = True
         self.lock.release()
@@ -288,8 +324,7 @@ class ImageCapture:
     def capture(self, frameNum, serialNum):
         self.publishSaveImage(frameNum, serialNum)
         # Give camera some time to grab the image
-#        time.sleep(1.5)
-        time.sleep(0.25)
+        time.sleep(self.cameraDelay)
         
     def point(self, h, v):
         pantilt=PanTiltPos()
@@ -298,8 +333,7 @@ class ImageCapture:
         self.pubPanTilt.publish(pantilt)
         print "{}: x={} y={}".format(self.collectionNum, h, v)
         # Give servo some time to move
-#        time.sleep(1)
-        time.sleep(0.2)
+        time.sleep(self.servoDelay)
 
     def pointAndCapture(self, frm):
         self.point(frm.servoH, frm.servoV)

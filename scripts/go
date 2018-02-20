@@ -1,6 +1,17 @@
 #!/bin/bash
-rm -rf /tmp/flircam/0
-pigpiod
+rm -rf /tmp/flircam/*
+
+PIGPIOBIND=$(netstat | grep 8888)
+if [ "$PIGPIOBIND" != "" ]; then
+    echo $PIGPIOBIND
+    exit -1
+fi
+
+pigpiod -s 10
+if [ $? -ne 0 ]; then
+    echo Not starting
+    exit -1
+fi
 
 # hdmi off
 tvservice -o
