@@ -5,67 +5,21 @@ import rospy
 import subprocess
 import threading
 import struct
-from enum import Enum
+import flircam_util as fcutil
 from flircam.msg import Detection
 from flircam.msg import ImageRequest
 from flircam.msg import DownlinkData
 from flircam.msg import Block
 import sys
 
-class StreamID(Enum):
-    RETURN_DETECTION = 4
-    RETURN_DETECTION_ARRAY = 5
-    REQUEST_WIFI = 7
-    REQUEST_IMAGE = 8
-    REQUEST_DETECTION_ARRAY = 10
-    RETURN_IMAGE = 9
-    RETURN_PING = 66
-    REQUEST_PING = 65
-    REQUEST_SHUTDOWN = 11
 
 def ImageRequestReceived(request, telemetryNode):
     telemetryNode.doSendImage(request)
-
-def ImageIdToString(imageId):
-    return "{}/{}.{}".format(imageId.collectionNumber, imageId.frameNumber, imageId.serialNumber)
-
-
-def BoolListToByteList(mylist):
-    weight = 1
-    value = 0
-    byteList = []
-    for b in mylist:
-        if b:
-            value += weight
-
-        if weight == 128:
-            # finished the uppermost bit
-            weight = 1
-            byteList.append(value)
-            value = 0
-        else:
-            # go to next bit
-            weight *= 2
-
-    if weight > 1:
-        # add last byte to list
-        byteList.append(value)
-        
-    return byteList
-
-def GetCurrentImageFileName(imageId):
-    folderNum = imageId.collectionNumber
-    frameNum = imageId.frameNumber
-    serialNum = imageId.serialNumber
-    return "/tmp/flircam/{}/{}.{}".format(folderNum, frameNum, serialNum)
-def GetBaselineImageFileName(imageId):
-    return "{0}.baseline".format(GetCurrentImageFileName(imageId))
-def GetDetectionImageFileName(imageId):
-    return "{0}.detection".format(GetCurrentImageFileName(imageId))
     
 def DetectionReceived(data, telemetryNode):
     telemetryNode.DetectionReceived(data)
 
+    
 # Transfers messages, bidirectionally, between the SerialStream.Server (the gateway.js web app is on the other side) and ROS (serial port hardware is on the other side)
 class TelemetryNode:
     def __init__(self):
@@ -84,7 +38,7 @@ class TelemetryNode:
         self.pubDownlink = rospy.Publisher('downlink', DownlinkData, queue_size=200)
 
     def DetectionReceived(self,data):
-        print "imageId={} detectionCount={} detection={} safe={} error={}".format(ImageIdToString(data.imageId), data.detectionCount, data.detection, data.safe, data.error)
+        print "imageId={} detectionCount={} detection={} safe={} error={}".format(fcutil.ImageIdToString(data.imageId), data.detectionCount, data.detection, data.safe, data.error)
         sys.stdout.flush()
 
         if (self.beginCollection):
@@ -111,7 +65,7 @@ class TelemetryNode:
         
             self.count += 1
 
-            self.sendSafeDetectArrayToDownlink(data.imageId)
+#            self.sendSafeDetectArrayToDownlink(data.imageId)
             
     def run(self):
         rate = rospy.Rate(10)
@@ -148,14 +102,7 @@ class TelemetryNode:
         self.SendBlockFromFile(GetDetectionImageFileName(imageId), num, size, 60*80/8)
 
     def SendBlockFromFile(self, fileName, num, size, endPos):
-        imageFile = file(fileName,"rb")
-        pos = num*size
-        imageFile.seek(pos)
-        if (pos + size > endPos):
-            size = endPos - pos
-
-        print "Block filename={} pos={} size={}".format(fileName,pos,size)
-        fileData = imageFile.read(size)
+        fileData = fcutil.ReadBlockFromFile(filename, num, size, endPos)
         downlink = DownlinkData()
         downlink.streamId = StreamID.RETURN_IMAGE.value
         downlink.verifyReceipt = False
