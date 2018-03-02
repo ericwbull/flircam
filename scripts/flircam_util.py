@@ -3,6 +3,7 @@ import numpy as np
 import struct
 
 class StreamID(Enum):
+    RETURN_INFO = 1
     RETURN_DETECTION = 4
     RETURN_DETECTION_ARRAY = 5
     REQUEST_WIFI = 7

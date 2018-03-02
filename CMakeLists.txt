@@ -58,6 +58,7 @@ add_message_files(
    DownlinkData.msg
    ImageRequest.msg
    ImageId.msg
+   NodeBytes.msg
 )
 
 ## Generate services in the 'srv' folder

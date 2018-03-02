@@ -10,6 +10,7 @@ from enum import Enum
 
 from std_msgs.msg import String
 from flircam.msg import DownlinkData
+from flircam.msg import NodeBytes
 import flircam_util as fcutil
 
 
@@ -41,20 +42,6 @@ def DataReceivedFromROSFabric(data, bridge):
 
 SERIAL_PORT='/dev/ttyS0'
 BAUD_RATE=115200
-
-class StreamID(Enum):
-    RETURN_INFO = 1
-    RETURN_GRIDEYE = 2
-    RETURN_GRIDEYE_RAW = 3
-    RETURN_DETECTION = 4
-    RETURN_DETECTION_ARRAY = 5
-    REQUEST_WIFI = 7
-    REQUEST_IMAGE = 8
-    REQUEST_DETECTION_ARRAY = 10
-    RETURN_IMAGE = 9
-    RETURN_PING = 66
-    REQUEST_PING = 65
-    UNKNOWN = 0
 
 def DownlinkDataReceived(downlink, bridgeNode):
     # Only the ROS thread calls this
@@ -145,7 +132,7 @@ class GatewaySerialPortROSBridge:
     def doAlertReturn(self,data,node,other):
         (collectionNum, frameNum, serialNum, minPixel, maxPixel, avgPixel, pixelCount, thisFrameCount, totalFrameCount) = struct.unpack_from('>HHHHHHLHH',data, 0)
 
-        msg = "[{}] imageId:{} collectionNum:{} serialNum:{} minPixel:{} maxPixel:{} avgPixel:{} pixelCount:{} thisFrameCount:{} totalFrameCount:{}\n"\
+        msg = "[{}] threat:1 imageId:{} collectionNum:{} serialNum:{} minPixel:{} maxPixel:{} avgPixel:{} pixelCount:{} thisFrameCount:{} totalFrameCount:{}\n"\
               .format(node, frameNum, collectionNum, serialNum, minPixel, maxPixel, avgPixel, pixelCount, thisFrameCount, totalFrameCount)
         print msg
         pubMsg=String(msg)
@@ -201,17 +188,17 @@ class GatewaySerialPortROSBridge:
         self.pubNodeBytes.publish(pubMsg)
 
     def DownlinkDataReceived(self,downlink):
-        streamId = StreamID(downlink.streamId)
+        streamId = fcutil.StreamID(downlink.streamId)
         self.processMessageByStream(5, streamId, downlink.data, "")
         
     def processMessageByStream(self,node,streamid,data,other):
-        if (streamid==StreamID.RETURN_INFO):
+        if (streamid==fcutil.StreamID.RETURN_INFO):
             self.doInfoReturn(node,data,other)
-        elif (streamid==StreamID.RETURN_ALERT):  # flircam detection
-            self.doDetectionReturn(data,node,other)
-        elif (streamid==StreamID.RETURN_DETECTION_ARRAY):  # flircam detection&safebits
+        elif (streamid==fcutil.StreamID.RETURN_ALERT):  # flircam detection
+            self.doAlertReturn(data,node,other)
+        elif (streamid==fcutil.StreamID.RETURN_DETECTION_ARRAY):  # flircam detection&safebits
             self.doDetectionArrayReturn(data,node,other)
-        elif (streamid==StreamID.RETURN_IMAGE):
+        elif (streamid==fcutil.StreamID.RETURN_IMAGE):
             self.doImageReturn(node,data)
         else:
             print "unhandled streamid '{}'".format(streamid)
@@ -224,9 +211,9 @@ class GatewaySerialPortROSBridge:
 
                 if (len(data)>0):
                 
-                    streamid=StreamID.UNKNOWN
+                    streamid=fcutil.StreamID.UNKNOWN
                     try:
-                        streamid=StreamID(data[0])
+                        streamid=fcutil.StreamID(data[0])
                     except ValueError:
                         pass
 
