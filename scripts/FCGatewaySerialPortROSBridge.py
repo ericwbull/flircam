@@ -137,7 +137,16 @@ class GatewaySerialPortROSBridge:
         print msg
         pubMsg=String(msg)
         self.pub.publish(pubMsg)
-        
+
+    def doStatusReturn(self,data,node,other):
+        (collectionNum, frameNum, serialNum, minPixel, maxPixel, avgPixel, statusCount, alertCount, totalImageCount) = struct.unpack_from('>HHHHHHHHH',data, 0)
+
+        msg = "[{}] imageId:{} collectionNum:{} serialNum:{} minPixel:{} maxPixel:{} avgPixel:{} statusCount:{} alertCount:{} imageCount:{}\n"\
+              .format(node, frameNum, collectionNum, serialNum, minPixel, maxPixel, avgPixel, statusCount, alertCount, totalImageCount)
+        print msg
+        pubMsg=String(msg)
+        self.pub.publish(pubMsg)
+
     def doDetectionArrayReturn(self,data,node,other):
 #        print "data=".format(data)
         (collectionNum, frameNum, serialNum) = struct.unpack_from('>HHH',data, 0)
@@ -196,6 +205,8 @@ class GatewaySerialPortROSBridge:
             self.doInfoReturn(node,data,other)
         elif (streamid==fcutil.StreamID.RETURN_ALERT):  # flircam detection
             self.doAlertReturn(data,node,other)
+        elif (streamid==fcutil.StreamID.RETURN_STATUS):  # flircam status
+            self.doStatusReturn(data,node,other)
         elif (streamid==fcutil.StreamID.RETURN_DETECTION_ARRAY):  # flircam detection&safebits
             self.doDetectionArrayReturn(data,node,other)
         elif (streamid==fcutil.StreamID.RETURN_IMAGE):

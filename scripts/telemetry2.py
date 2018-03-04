@@ -64,7 +64,7 @@ class TelemetryNode:
                 self.detectionBits[bitNum]=False
         
             self.count += 1
-
+        
 #            self.sendSafeDetectArrayToDownlink(data.imageId)
             
     def run(self):

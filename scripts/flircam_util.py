@@ -13,7 +13,10 @@ class StreamID(Enum):
     RETURN_PING = 66
     REQUEST_PING = 65
     REQUEST_SHUTDOWN = 11
-    RETURN_ALERT = 12
+    RETURN_SERIAL_SYNC = 12
+    REQUEST_SERIAL_SYNC = 13
+    RETURN_STATUS = 14
+    RETURN_ALERT = 15
 
     
 def ImageIdToString(imageId):

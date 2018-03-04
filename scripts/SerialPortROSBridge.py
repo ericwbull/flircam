@@ -6,6 +6,8 @@ import rospy
 import subprocess
 import threading
 import struct
+
+import flircam_util as fcutil
 from enum import Enum
 from flircam.msg import DownlinkData
 from flircam.msg import Block
@@ -21,21 +23,8 @@ def DownlinkDataReceived(downlink, bridgeNode):
     # Only the ROS thread calls this
     # Send downlink data to serial port
     # Todo: implement verifyReceipt
-    streamId = StreamID(downlink.streamId)
+    streamId = fcutil.StreamID(downlink.streamId)
     bridge.BlockingSendDataToSerialPort(streamId, map(ord, downlink.data))
-
-class StreamID(Enum):
-    RETURN_DETECTION = 4
-    RETURN_DETECTION_ARRAY = 5
-    REQUEST_WIFI = 7
-    REQUEST_IMAGE = 8
-    REQUEST_DETECTION_ARRAY = 10
-    RETURN_IMAGE = 9
-    RETURN_PING = 66
-    REQUEST_PING = 65
-    REQUEST_SHUTDOWN = 11
-    RETURN_SERIAL_SYNC = 12
-    REQUEST_SERIAL_SYNC = 13
     
 class SerialPortROSBridge:
     def __init__(self):
@@ -63,7 +52,7 @@ class SerialPortROSBridge:
             try:
                 data = self.readMessageFromSerialPort()
                 if (len(data)>0):
-                    streamid = StreamID(data[0])
+                    streamid = fcutil.StreamID(data[0])
                     self.doMessageByStream(streamid, data[1:])
             except struct.error:
                 pass
@@ -74,7 +63,7 @@ class SerialPortROSBridge:
 #    def doPing(self,data):
 #        # Only the main thread calls this.
 #        print "Ping={}".format(data)
-#        self.LockedSendDataToSerialPort(StreamID.RETURN_PING, data)
+#        self.LockedSendDataToSerialPort(fcutil.StreamID.RETURN_PING, data)
         
     def doWifiOnOff(self,data):
         # Only the main thread calls this.
@@ -137,16 +126,16 @@ class SerialPortROSBridge:
         
     def doMessageByStream(self, streamid, data):
         # Only the main thread calls this.
-        if (streamid == StreamID.REQUEST_WIFI):
+        if (streamid == fcutil.StreamID.REQUEST_WIFI):
             self.doWifiOnOff(data)
-        elif (streamid == StreamID.REQUEST_SHUTDOWN):
+        elif (streamid == fcutil.StreamID.REQUEST_SHUTDOWN):
             # If the message has nonzero data length then it is bad input - don't shutdown.
             if (len(data) == 0):
                 self.doShutdown()
-        elif (streamid == StreamID.REQUEST_IMAGE):
+        elif (streamid == fcutil.StreamID.REQUEST_IMAGE):
             # Forwarded ROS
             self.doSendImage(data)
-        elif (streamid == StreamID.RETURN_SERIAL_SYNC):
+        elif (streamid == fcutil.StreamID.RETURN_SERIAL_SYNC):
             self.ReceiveSerialSync(data)
 
 # Forward ping ROS
@@ -185,7 +174,7 @@ class SerialPortROSBridge:
         return data
 
     def SendSerialSync(self):
-        self.SendDataToSerialPort(StreamID.REQUEST_SERIAL_SYNC,[])
+        self.SendDataToSerialPort(fcutil.StreamID.REQUEST_SERIAL_SYNC,[])
 
     def WaitForOkToSend(self):
         print "begin WaitForOkToSend"
