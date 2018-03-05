@@ -3,6 +3,7 @@ import numpy as np
 import struct
 
 class StreamID(Enum):
+    UNKNOWN = 0
     RETURN_INFO = 1
     RETURN_DETECTION = 4
     RETURN_DETECTION_ARRAY = 5
@@ -17,7 +18,7 @@ class StreamID(Enum):
     REQUEST_SERIAL_SYNC = 13
     RETURN_STATUS = 14
     RETURN_ALERT = 15
-
+    NOTIFY_SLEEP = 16
     
 def ImageIdToString(imageId):
     return "{}/{}.{}".format(imageId.collectionNumber, imageId.frameNumber, imageId.serialNumber)
