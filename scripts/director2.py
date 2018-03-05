@@ -20,8 +20,8 @@ class Director:
         self.count=0
         (imagePositions, rowAngles, colAngles) = self.getPositionList()
         flatAnglePos = tuple((25,0))
-        servoDelay = 1.5
-        cameraDelay = 1.0
+        servoDelay = 0.5
+        cameraDelay = 0.5
         self.safeCountdown = 0
         self.imageCapture = ImageCapture.ImageCapture(flatAnglePos, imagePositions, rowAngles, colAngles, servoDelay, cameraDelay)
         
@@ -48,9 +48,9 @@ class Director:
         return tuple((posList, rowAngles, colAngles))
                                
     def run(self):
-        time.sleep(60)
+#        time.sleep(60)
         while not rospy.is_shutdown():
-            time.sleep(120)
+#            time.sleep(120)
             # set to start processing near the flatfield position
             self.imageCapture.setNextFrame(46)
             self.imageCapture.requestAll()

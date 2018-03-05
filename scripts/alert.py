@@ -22,6 +22,9 @@ class AlertNode:
     def __init__(self):
         now = time.time()
         self.statusUpdateTime = now + AlertNode.STATUS_UPDATE_INTERVAL
+        # Radio goes to sleep in 20 seconds
+        self.sleepNotifyTime = now + 20
+        self.sleepMode = False
         self.frameCount = 0
         self.alertCount = 0
         self.statusCount = 0
@@ -68,12 +71,20 @@ class AlertNode:
             self.statusCount += 1
             self.sendStatusToDownlink(detection)
             self.statusUpdateTime = now + AlertNode.STATUS_UPDATE_INTERVAL
+            # Radio goes back to sleep 7 seconds after sending status
+            self.sleepNotifyTime = now + 7
+            self.sleepMode = False
             
     def run(self):
         rate = rospy.Rate(10)
         print "Ready"
-        rospy.spin()
-
+        while not rospy.is_shutdown():
+            # Tell moteino to go into sleep mode.
+            if self.sleepMode == False and time.time() > self.sleepNotifyTime:
+                self.SendNotifySleepToDownlink()
+                self.sleepMode = True
+            rate.sleep()
+            
     def sendAlertToDownlink(self,detection):
         imageId = detection.imageId
         detectionPixelCount = detection.detectionCount
@@ -112,6 +123,16 @@ class AlertNode:
         
         downlink.data = list(data)
         print "Status: {} min:{} max:{} avg:{} statusCount:{} alertCount:{} frameCount:{}".format(fcutil.ImageIdToString(imageId),minPixel,maxPixel,avgPixel, self.statusCount, self.alertCount, self.frameCount)
+        self.pubDownlink.publish(downlink)
+
+    def SendNotifySleepToDownlink(self):
+        downlink = DownlinkData()
+        downlink.streamId = fcutil.StreamID.NOTIFY_SLEEP.value
+        data = bytearray(chr(0)*1)
+        data[0] = chr(1);
+        downlink.verifyReceipt = True        
+        downlink.data = list(data)
+        print "Notify sleep"
         self.pubDownlink.publish(downlink)
 
 if __name__ == '__main__':
