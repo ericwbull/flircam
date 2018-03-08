@@ -1,4 +1,4 @@
 <launch>
-	<node name="FCGatewaySerialPortROSBridge" pkg="flircam" type="FCGatewaySerialPortROSBridge.py" />
+	<!-- node name="FCGatewaySerialPortROSBridge" pkg="flircam" type="FCGatewaySerialPortROSBridge.py" / -->
 	<node name="SerialStreamROSBridge" pkg="flircam" type="SerialStreamROSBridge.py" />
 </launch>

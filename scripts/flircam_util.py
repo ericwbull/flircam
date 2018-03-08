@@ -52,6 +52,7 @@ def GetCurrentImageFileName(imageId):
     serialNum = imageId.serialNumber
     return "/tmp/flircam/{}/{}.{}".format(folderNum, frameNum, serialNum)
 
+
 def GetBaselineImageFileName(imageId):
     return "{0}.baseline".format(GetCurrentImageFileName(imageId))
 

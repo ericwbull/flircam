@@ -18,10 +18,10 @@ def NodeBytesReceived(data,fetch):
     # Write data to the file or save in memory until all the parts arrive
     
 class ImageFetcher:
-    def __init__(self, imageId):
+    def __init__(self, imageId, folderNum, serialNum):
         self.frameNum = imageId
-        self.folderNum = 0
-        self.serialNum = 0
+        self.folderNum = folderNum
+        self.serialNum = serialNum
         self.fileData = bytearray([0]*600)
         self.imageData = array.array('H')
         self.imageData.extend([0]*4800)
@@ -98,7 +98,7 @@ class ImageFetcher:
         pubMsg.node = 5
         # streamid 8, imageid, imagetype (1=current), blocksize 59, range count, range list (start, count), ...
         #                 collection, frame,           serial  type
-        pubMsg.data = [8, 0,0,        self.frameNum,0,  0,0,    3,    self.blockSize, 1, 0, self.blockCountPending]
+        pubMsg.data = [8, self.folderNum,0,        self.frameNum,0,  self.serialNum,0,    3,    self.blockSize, 1, 0, self.blockCountPending]
         print "publish"
         self.pub.publish(pubMsg)
         missing = self.missingBlocks()
@@ -116,7 +116,7 @@ class ImageFetcher:
                 watchdogStart = time.time()
             watchdogEnd = time.time()
 
-            if (watchdogEnd - watchdogStart > 3):
+            if (watchdogEnd - watchdogStart > 40):
                 timeout = True
             
 #        if (len(missing) == 0):
@@ -128,7 +128,7 @@ class ImageFetcher:
 if __name__ == '__main__':
     try:
         time.sleep(1)
-        fetch = ImageFetcher(int(sys.argv[1]))
+        fetch = ImageFetcher(int(sys.argv[1]),int(sys.argv[2]),int(sys.argv[3]))
         fetch.saveDetectionToPBM()
         
     except rospy.ROSInterruptException:
