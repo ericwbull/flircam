@@ -97,13 +97,14 @@ inline uint16_t getMaxValueAdjacentPixels(int x, int y, int span, const std::vec
     return maxVal;
 }
 
-// returns signal strength
-// modifies image so the bit map is returned to the caller
-int DetectChanges(const std::vector<uint16_t>& baseline, const std::vector<uint16_t>& image, std::vector<uint16_t>& detectionMap, std::vector<uint16_t>& filteredDetectionMap)
+// returns detection count
+int DetectChanges(const std::vector<double>& sigma, std::vector<uint16_t>& detectionMap, std::vector<uint16_t>& filteredDetectionMap)
 {
     // compare and threshold
     detectionMap.assign(image.size(),0);
-    std::transform(image.begin(), image.end(), baseline.begin(), detectionMap.begin(), ImageUtil::subtract_and_threshold(g_pixelChangeThreshold));
+
+    // sigma values more than some threshold flag as detection
+    //    std::transform(sigma.begin(), sigma.end(), baseline.begin(), detectionMap.begin(), ImageUtil::subtract_and_threshold(g_pixelChangeThreshold));
 
     // detection map is now an array of 0 or 1.
     if (false == validateData(detectionMap, 0, 1))
@@ -147,24 +148,6 @@ void Configure(const flircam::Configure::ConstPtr& msg)
     std::cout << "neighborDetectionCountThreshold: " << g_neighborDetectionCountThreshold << std::endl;
 }
 
-void UpdateBaseline(const flircam::ImageId& imageId, const std::vector<uint16_t> image)
-{
-  // Apply maxVal of neighbors to create baseline from image
-
-  std::vector<uint16_t> baseline;
-  baseline.assign(image.size(), 0);
-  for (int y = 0; y < 60; y++)
-    {
-      for (int x = 0; x < 80; x++)
-        {
-	  uint16_t maxVal = getMaxValueAdjacentPixels(x, y, g_neighborMaxValueSpan, image);
-	  setPixel(x,y,baseline,maxVal);
-	}
-    }
-
-  ImageUtil::WriteBaseline(imageId, baseline);
-  ImageUtil::WritePGM(imageId, baseline, "new_baseline");
-}
 
 void PublishDetection(const flircam::ImageId& imageId, int detectionCount)
 {
@@ -195,68 +178,151 @@ void ReceiveImageId(const flircam::ImageId::ConstPtr& msg)
       }
 }
 
+struct AverageAndVariance
+{
+  const double SIGMA_MAX = 100.0;
+  const double SIGMA_MIN = -100.0;
+  double m_average = 0;
+  double m_variance = 0;
+
+  /// Returns sigma deviation from standard for the given sample,
+  /// and adds the sample to the statistical average and variance.
+  ///@param[in] sample the sample
+  ///@param[in] weight the weight given to the new sample
+  inline double add(double sample, double weight)
+  {
+    // Calculate the sigma deviation from standard for this sample.
+    double diff0 = sample - m_average;
+    double stdDeviation = sqrt(m_variance);
+
+    double sigma = diff0/stdDeviation;
+    if (stdDeviation != 0)
+      {
+	sigma = diff0/stdDeviation;
+      }
+    else
+      {
+	if (diff0 == 0)
+	  {
+	    sigma = 0;
+	  }
+	else
+	  {
+	    if (diff0 > 0)
+	      {
+		sigma = SIGMA_MAX;
+	      }
+	    else
+	      {
+		sigma = SIGMA_MIN;
+	      }
+	  }
+      }
+    
+    // Update average and variance
+    m_average = (sample * weight) + m_average * (1-weight);
+    double diff1 = sample - m_average;
+
+    double sampleVariance = diff0 * diff1;
+    double m_variance = sampleVariance * weight + m_variance * (1-weight);
+
+    return sigma;
+  }
+
+};
+
+struct ImageBaseline
+{
+  const double WEIGHT = 0.05;
+  const int PIXEL_COUNT = 4800;
+  int sampleCount = 0;
+
+  struct Pixel
+  {
+    AverageAndVariance m_averageAndVariance;
+  };
+
+  std::array<Pixel, PIXEL_COUNT> m_pixels = {0};
+
+  void AddImage(std::vector<uint16_t> data, std::array<double,PIXEL_COUNT>& sigma)
+  {
+    // First sample is weighted at 100%
+    double weight = m_sampleCount? WEIGHT: 100.0;
+    for(uint i = 0; i < PIXEL_COUNT; i++)
+      {
+	Pixel& pixel = m_pixels[i];
+	sigma[i] = pixel.m_averageAndVariance.add(data[i],weight);
+      }
+
+    sampleCount += 1;
+  }
+};
+
 void ProcessImage(const flircam::ImageId& imageId)
 {
-
-  // The baseline is an exponential windowed moving average.
-  // The baseline also contains the exponential windowed moving average value of the power terms of the variance equation.  The square root of this is the standard deviation.
-  // Image data is always? added to the baseline, even if there are detections?
-  // A detection is a pixel value that deviates too far from the standard.
+  // Flatfield correction:
+  //   Take image of flat field target.
+  //   Take average of all flatfield pixels.
+  //   Take difference from average for each pixel.  This is the flatfield correction frame.
+  //   Subtract the flatfield correction frame from each image.
+  //
+  // For each image frame, we take the average of all pixels.  Monitor this average for statistical anomoly.
+  // For each image frame, we take the min and max of all pixels.  Monitor these values for statistical anomoly.
+  //
+  // Translate each pixel value to it's difference from the average -- call this the normalized image. (We did the same to create the flatfield correction frame).
+  // The detection algorithm operates on this normalized image, which has the average value subtracted out, and pixels can have negative values.
+  // The FrameGrabber component does all of the above.
+  // ----
+  // The ImageProc component does the the detection algorithm.
   // 
-  
+  // Baseline data contains an exponential windowed moving average value of each pixel of the normalized image.
+  // Baseline data contains an exponential windowed moving average value of the power terms of the variance equation applied to each pixel of the normalized image.
+  // The square root of this is the standard deviation.
+  //
+  //  For each pixel, update the average and the variance data.  This is just two floating point (double precision) values per pixel.
+  //
+  // Image data is always added to the baseline, even if there are detections.  This means that if a detected object doesn't move around, then it will eventually get ignored.
+  // 
+  // A detection is a pixel value that deviates too far from the standard.
+  // Create a detection bitmap. Further operations may be performed on the detection bitmap.
+  //
+  // 
+    ImageBaseline baseline;
+    
     std::vector<uint16_t> image;
-    std::vector<uint16_t> baseline;
     ImageUtil::ReadImage(imageId, image);
 
-    bool updateBaseline = false;
-    int detectionCount = 0;
+    bool first = false;
     if (false == ImageUtil::ReadBaseline(imageId, baseline))
     {
-        updateBaseline = true;
+      // Create baseline for the first time.
+      baseline = ImageBaseline();
+      first = true;
     }
-    else
-    {
-        // Write the subtraction result to file for inspection
-        std::vector<uint16_t> diff;
-        diff.resize(image.size());
 
-        std::transform(image.begin(), image.end(), baseline.begin(), diff.begin(), ImageUtil::truncated_minus());
-        ImageUtil::WritePGM(imageId, diff, "diff");
+    std::array<double,ImageBaseline::PIXEL_COUNT> sigma;
+    baseline.AddImage(image,sigma);
 
+    int detectionCount = 0;
+    if (!first)
+      {
+	// Create detection bitmap from sigma values that are more then some threshold.
 
-        std::vector<uint16_t> detectionMap;
-        std::vector<uint16_t> filteredDetectionMap;
-        detectionCount = DetectChanges(baseline, image, detectionMap, filteredDetectionMap);
-
-	// -1 is error
-	if (detectionCount >= 0)
-	  {
-	    ImageUtil::WritePGM(imageId, baseline, "diff_baseline");
-
-            // write the detection bitmap to file for inspection.
-	    ImageUtil::WritePBM(imageId, detectionMap, "detect");
-	    ImageUtil::WritePBM(imageId, filteredDetectionMap, "filteredDetect");
-	    ImageUtil::WriteDetectionMap(imageId, filteredDetectionMap);
-	  }
+	// Write sigma image to file.
+	// Write detection bitmap to file.
+	std::vector<uint16_t> detectionMap;
+	std::vector<uint16_t> filteredDetectionMap;
+	detectionCount = DetectChanges(sigma, detectionMap, filteredDetectionMap);
 	
-        //
-        // Publish detection result always
-	PublishDetection(imageId, detectionCount);
-	//        detectMsg.signalHistogram = histogram;
+	// write the detection bitmap to file for inspection.  Detetions may be ignored if baseline sample count is below some threshold.
+	ImageUtil::WritePBM(imageId, detectionMap, "detect");
+	ImageUtil::WritePBM(imageId, filteredDetectionMap, "filteredDetect");
+	ImageUtil::WriteDetectionMap(imageId, filteredDetectionMap);
+      }
 
-        // If safe (not much change in the image), then update the baseline.
-        if (detectionCount == 0)
-        {
-            updateBaseline = true;
-        }
-    }
-
-
-    if (updateBaseline)
-    {
-      UpdateBaseline(imageId, image);
-    }
-
+    //
+    // Publish detection result always
+    PublishDetection(imageId, detectionCount);
 }
 
 
