@@ -143,8 +143,8 @@ ${catkin_INCLUDE_DIRS}
 ## With catkin_make all packages are built within a single CMake context
 ## The recommended prefix ensures that target names across packages don't collide
 add_executable(FrameGrabber2 src/FrameGrabber2.cpp src/ImageUtil.cpp)
-add_executable(ImageProc src/ImageProc.cpp src/ImageUtil.cpp)
-add_dependencies(ImageProc flircam_generate_messages_cpp)
+add_executable(ImageProc2 src/ImageProc2.cpp src/ImageUtil.cpp)
+add_dependencies(ImageProc2 flircam_generate_messages_cpp)
 add_dependencies(FrameGrabber2 flircam_generate_messages_cpp)
 
 ## Rename C++ executable without prefix
@@ -168,7 +168,7 @@ target_link_libraries(FrameGrabber2
   pthread
 )
 
-target_link_libraries(ImageProc
+target_link_libraries(ImageProc2
   ${catkin_LIBRARIES}
   boost_filesystem
   png

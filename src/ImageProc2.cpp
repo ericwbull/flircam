@@ -101,7 +101,7 @@ inline uint16_t getMaxValueAdjacentPixels(int x, int y, int span, const std::vec
 int DetectChanges(const std::vector<double>& sigma, std::vector<uint16_t>& detectionMap, std::vector<uint16_t>& filteredDetectionMap)
 {
     // compare and threshold
-    detectionMap.assign(image.size(),0);
+    detectionMap.assign(sigma.size(),0);
 
     // sigma values more than some threshold flag as detection
     //    std::transform(sigma.begin(), sigma.end(), baseline.begin(), detectionMap.begin(), ImageUtil::subtract_and_threshold(g_pixelChangeThreshold));
@@ -113,7 +113,7 @@ int DetectChanges(const std::vector<double>& sigma, std::vector<uint16_t>& detec
       }
 
     // Next filter the detection map based on neighborhood detection count.
-    filteredDetectionMap.assign(image.size(),0);
+    filteredDetectionMap.assign(sigma.size(),0);
     int detectionPixelCount = 0;
     for (int y = 0; y < 60; y++)
     {
