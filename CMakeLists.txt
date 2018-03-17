@@ -128,6 +128,7 @@ catkin_package(
 include_directories(
 ${catkin_INCLUDE_DIRS}
 /home/pi/git/LePi/lib/leptonAPI/include
+/home/pi/git/cereal/include
 )
 
 ## Declare a C++ library
@@ -142,10 +143,10 @@ ${catkin_INCLUDE_DIRS}
 ## Declare a C++ executable
 ## With catkin_make all packages are built within a single CMake context
 ## The recommended prefix ensures that target names across packages don't collide
-add_executable(FrameGrabber2 src/FrameGrabber2.cpp src/ImageUtil.cpp)
+add_executable(FrameGrabber3 src/FrameGrabber3.cpp src/ImageUtil.cpp)
 add_executable(ImageProc2 src/ImageProc2.cpp src/ImageUtil.cpp)
 add_dependencies(ImageProc2 flircam_generate_messages_cpp)
-add_dependencies(FrameGrabber2 flircam_generate_messages_cpp)
+add_dependencies(FrameGrabber3 flircam_generate_messages_cpp)
 
 ## Rename C++ executable without prefix
 ## The above recommended prefix causes long target names, the following renames the
@@ -158,7 +159,7 @@ add_dependencies(FrameGrabber2 flircam_generate_messages_cpp)
 # add_dependencies(${PROJECT_NAME}_node ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 
 ## Specify libraries to link a library or executable target against
-target_link_libraries(FrameGrabber2
+target_link_libraries(FrameGrabber3
   ${catkin_LIBRARIES}
   boost_filesystem
   /home/pi/git/LePi/install/lib/libleptonAPI.a

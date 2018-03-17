@@ -43,10 +43,10 @@ while (<STDIN>)
 
 	if (defined($col))
 	{
-		print "//pi-desktop/$filename($row,$col): $message\n";
+		print "//raspberrypi/$filename($row,$col): $message\n";
 	}
 	else 
 	{
-		print "//pi-desktop/$filename($row): $message\n";
+		print "//raspberrypi/$filename($row): $message\n";
 	}
 }
