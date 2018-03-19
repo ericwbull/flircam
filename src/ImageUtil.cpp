@@ -159,6 +159,16 @@ namespace ImageUtil
 		return nf.save(GetBaselineFileName(imageId).c_str());
 	}
 
+	bool ReadBaseline(const flircam::ImageId& imageId, ImageStatistics& baseline)
+	{
+		return baseline.load(GetBaselineFileName(imageId).c_str());
+	}
+
+	bool WriteBaseline(const flircam::ImageId& imageId, const ImageStatistics& baseline)
+	{
+		return baseline.save(GetBaselineFileName(imageId).c_str());
+	}
+
 	bool WriteDetectionMap(const flircam::ImageId& imageId, const std::vector<uint16_t>&d)
 	{
 		std::vector<uint8_t> bitmap(d.size() / 8);
@@ -202,16 +212,6 @@ namespace ImageUtil
 		ifs.read(reinterpret_cast<char*>(&frame[0]), IMAGE_SIZE_BYTES);
 
 		return true;
-	}
-
-	bool ReadBaseline(const flircam::ImageId& imageId, ImageStatistics& baseline)
-	{
-		return baseline.load(GetBaselineFileName(imageId).c_str());
-	}
-
-	bool WriteBaseline(const flircam::ImageId& imageId, const ImageStatistics& baseline)
-	{
-		return baseline.save(GetBaselineFileName(imageId).c_str());
 	}
 
 	bool WriteImageDataToPGMFile(const char* file_name, const std::vector<uint16_t>& frame)
@@ -379,17 +379,17 @@ namespace ImageUtil
 		return m_average;
 	}
 
-	double 
-		NormalizedFrame::getMin() const
-	{
-		return 0;
-	}
+	//double 
+	//	NormalizedFrame::getMin() const
+	//{
+	//	return 0;
+	//}
 
-	double 
-		NormalizedFrame::getMax() const
-	{
-		return 0;
-	}
+	//double 
+	//	NormalizedFrame::getMax() const
+	//{
+	//	return 0;
+	//}
 
 	const std::vector<int>& 
 		NormalizedFrame::getNormalizedData() const

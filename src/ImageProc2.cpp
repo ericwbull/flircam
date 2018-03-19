@@ -226,10 +226,13 @@ void ProcessImage(const flircam::ImageId& imageId)
 	std::vector<double> sigma;
 	baseline.addImage(image.getNormalizedData(), sigma);
 
+	// Write baseline back to file
+	ImageUtil::WriteBaseline(imageId, baseline);
+
 	int detectionCount = 0;
 	if (!first)
 	{
-		// Create detection bitmap from sigma values that are more then some threshold.
+		// Create detection bitmap from sigma values that are more than some threshold.
 
 		// Write sigma image to file.
 		// Write detection bitmap to file.

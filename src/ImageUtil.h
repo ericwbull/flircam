@@ -100,7 +100,7 @@ namespace ImageUtil
 			sigma.resize(data.size());
 
 			// First sample is weighted at 100%
-			double weight = m_sampleCount ? WEIGHT : 100.0;
+			double weight = m_sampleCount ? WEIGHT : 1.0;
 			for (uint i = 0; i < m_pixels.size(); i++)
 			{
 				Pixel& pixel = m_pixels[i];
@@ -128,8 +128,8 @@ namespace ImageUtil
 
 		const std::vector<int>& getNormalizedData() const;
 		double getAverage() const;
-		double getMin() const;
-		double getMax() const;
+		//double getMin() const;
+		//double getMax() const;
 
 		// Invert the pixel values.
 		void invert();
@@ -178,6 +178,7 @@ namespace ImageUtil
 	bool ReadBaseline(const flircam::ImageId&, ImageStatistics& baseline);
 	bool WriteBaseline(const flircam::ImageId&, const std::vector<uint16_t>& d);
 	bool WriteBaseline(const flircam::ImageId&, const NormalizedFrame& d);
+	bool WriteBaseline(const flircam::ImageId&, const ImageStatistics& d);
 	bool WriteDetectionMap(const flircam::ImageId&, const std::vector<uint16_t>&d);
 	bool WritePBM(const flircam::ImageId&, const std::vector<uint16_t>&d, const char* ext);
 	bool WritePGM(const flircam::ImageId&, const std::vector<uint16_t>&d, const char* ext);
