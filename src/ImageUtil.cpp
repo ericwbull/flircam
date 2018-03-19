@@ -110,6 +110,10 @@ namespace ImageUtil
 		return WriteImageDataToFile(GetImageFileName(imageId).c_str(), d);
 	}
 
+	bool WriteImage(const flircam::ImageId& imageId, const NormalizedFrame& nf)
+	{
+		return nf.save(GetImageFileName(imageId).c_str());
+	}
 
 	bool WritePGM(const flircam::ImageId& imageId, const std::vector<uint16_t>& d, const char* ext)
 	{
@@ -135,9 +139,24 @@ namespace ImageUtil
 		return ReadImageDataFromFile(GetImageFileName(imageId).c_str(), d);
 	}
 
+	bool ReadImage(const flircam::ImageId& imageId, NormalizedFrame& nf)
+	{
+		return nf.load(GetImageFileName(imageId).c_str());
+	}
+
 	bool WriteBaseline(const flircam::ImageId& imageId, const std::vector<uint16_t>&d)
 	{
 		return WriteImageDataToFile(GetBaselineFileName(imageId).c_str(), d);
+	}
+
+	bool ReadBaseline(const flircam::ImageId& imageId, NormalizedFrame& nf)
+	{
+		return nf.load(GetBaselineFileName(imageId).c_str());
+	}
+
+	bool WriteBaseline(const flircam::ImageId& imageId, const NormalizedFrame& nf)
+	{
+		return nf.save(GetBaselineFileName(imageId).c_str());
 	}
 
 	bool WriteDetectionMap(const flircam::ImageId& imageId, const std::vector<uint16_t>&d)
@@ -183,6 +202,16 @@ namespace ImageUtil
 		ifs.read(reinterpret_cast<char*>(&frame[0]), IMAGE_SIZE_BYTES);
 
 		return true;
+	}
+
+	bool ReadBaseline(const flircam::ImageId& imageId, ImageStatistics& baseline)
+	{
+		return baseline.load(GetBaselineFileName(imageId).c_str());
+	}
+
+	bool WriteBaseline(const flircam::ImageId& imageId, const ImageStatistics& baseline)
+	{
+		return baseline.save(GetBaselineFileName(imageId).c_str());
 	}
 
 	bool WriteImageDataToPGMFile(const char* file_name, const std::vector<uint16_t>& frame)
@@ -331,10 +360,8 @@ namespace ImageUtil
 		fclose(fp);
 	}
 	
-	NormalizedFrame::NormalizedFrame(const char* filename)
+	NormalizedFrame::NormalizedFrame()
 	{
-		std::ifstream ifs(filename, std::ios::binary);
-		deserializeFromStream(ifs);
 	}
 
 	NormalizedFrame::NormalizedFrame(const std::vector<uint16_t>& frame)
@@ -346,14 +373,48 @@ namespace ImageUtil
 		std::transform(frame.begin(), frame.end(), m_frame.begin(), std::bind2nd(std::plus<int>(), m_average));
 	}
 
-	int NormalizedFrame::GetAverage() const
+	double 
+		NormalizedFrame::getAverage() const
 	{
 		return m_average;
 	}
 
-	const std::vector<int>& NormalizedFrame::GetNormalizedData() const
+	double 
+		NormalizedFrame::getMin() const
+	{
+		return 0;
+	}
+
+	double 
+		NormalizedFrame::getMax() const
+	{
+		return 0;
+	}
+
+	const std::vector<int>& 
+		NormalizedFrame::getNormalizedData() const
 	{
 		return m_frame;
+	}
+
+	void 
+		NormalizedFrame::getStretchedData(std::vector<uint16_t>& data) const
+	{
+		data.resize(m_frame.size());
+
+		auto iterPairMinMax = std::minmax_element(m_frame.begin(), m_frame.end());
+		int minValue = *iterPairMinMax.first;
+		int maxValue = *iterPairMinMax.second;
+
+
+		// Output stretched image for inspection
+		std::vector<int> stretched = m_frame;
+		ImageUtil::stretch<int> s;
+		s.min = minValue;
+		s.scalar = 255 / (maxValue - minValue);
+		std::for_each(stretched.begin(), stretched.end(), s);
+
+		std::copy(stretched.begin(), stretched.end(), data.begin());
 	}
 
 	void NormalizedFrame::deserializeFromStream(std::istream& is)
@@ -368,9 +429,70 @@ namespace ImageUtil
 		oarchive(*this);
 	}
 
-	void NormalizedFrame::SaveToFile(const char* filename) const
+	bool NormalizedFrame::load(const char* filename)
+	{
+		std::ifstream ifs(filename, std::ios::binary);
+		deserializeFromStream(ifs);
+		return !ifs.bad();
+	}
+
+	bool NormalizedFrame::save(const char* filename) const
 	{
 		std::ofstream ofs(filename, std::ios::binary);
 		serializeToStream(ofs);
+		return !ofs.bad();
+	}
+
+	// Invert the pixel values.
+	void NormalizedFrame::invert()
+	{
+		for (int& d : m_frame)
+		{
+			d = -d;
+		}
+	}
+
+	// Add x to all pixel values.  This changes only the average.
+	// Use this to set average to zero. add(-GetAverage())
+	void NormalizedFrame::add(double x)
+	{
+		m_average += x;
+	}
+
+	// Add the given frame to this frame
+	void NormalizedFrame::add(const NormalizedFrame& data)
+	{
+		m_average += data.m_average;
+
+		for (int i = 0; i < m_frame.size(); i++)
+		{
+			m_frame[i] += data.m_frame[i];
+		}
+	}
+
+	void ImageStatistics::deserializeFromStream(std::istream& is)
+	{
+		cereal::BinaryInputArchive iarchive(is);
+		iarchive(*this);
+	}
+
+	void ImageStatistics::serializeToStream(std::ostream& os) const
+	{
+		cereal::BinaryOutputArchive oarchive(os);
+		oarchive(*this);
+	}
+
+	bool ImageStatistics::load(const char* filename)
+	{
+		std::ifstream ifs(filename, std::ios::binary);
+		deserializeFromStream(ifs);
+		return !ifs.bad();
+	}
+
+	bool ImageStatistics::save(const char* filename) const
+	{
+		std::ofstream ofs(filename, std::ios::binary);
+		serializeToStream(ofs);
+		return !ofs.bad();
 	}
 }

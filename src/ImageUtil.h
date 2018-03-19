@@ -65,27 +65,43 @@ namespace ImageUtil
 
 	};
 
-	struct ImageBaseline
+	struct ImageStatistics
 	{
 		static constexpr double WEIGHT = 0.05;
-		static constexpr int PIXEL_COUNT = 4800;
 
 		int m_sampleCount = 0;
-
+		
 		struct Pixel
 		{
 			AverageAndVariance m_averageAndVariance;
+
+			template<class Archive>
+			void serialize(Archive& ar)
+			{
+				ar(m_averageAndVariance.m_average, m_averageAndVariance.m_variance);
+			}
 		};
 
 		std::vector<Pixel> m_pixels;
 
-		void AddImage(const std::vector<uint16_t>& data, std::vector<double>& sigma)
+		template<class Archive>
+		void serialize(Archive& ar)
 		{
+			ar(m_sampleCount, m_pixels);
+		}
+
+		void addImage(const std::vector<int>& data, std::vector<double>& sigma)
+		{
+			if (m_pixels.size() == 0)
+			{
+				m_pixels.resize(data.size());
+			}
+
 			sigma.resize(data.size());
 
 			// First sample is weighted at 100%
 			double weight = m_sampleCount ? WEIGHT : 100.0;
-			for (uint i = 0; i < PIXEL_COUNT; i++)
+			for (uint i = 0; i < m_pixels.size(); i++)
 			{
 				Pixel& pixel = m_pixels[i];
 				sigma[i] = pixel.m_averageAndVariance.add(data[i], weight);
@@ -93,44 +109,75 @@ namespace ImageUtil
 
 			m_sampleCount += 1;
 		}
+
+		bool save(const char* filename) const;
+		bool load(const char* filename);
+
+		void serializeToStream(std::ostream& os) const;
+		void deserializeFromStream(std::istream& is);
 	};
 
 
 	class NormalizedFrame
 	{
 	public:
-		NormalizedFrame(const char* filename);
+		NormalizedFrame();
 		NormalizedFrame(const std::vector<uint16_t>& frame);
-		void SaveToFile(const char* filename) const;
+		bool save(const char* filename) const;
+		bool load(const char* filename);
+
+		const std::vector<int>& getNormalizedData() const;
+		double getAverage() const;
+		double getMin() const;
+		double getMax() const;
+
+		// Invert the pixel values.
+		void invert();
+
+		// Add x to all pixel values.  This changes only the average.
+		// Use this to set average to zero. add(-GetAverage())
+		void add(double x);
+
+		// Add the given frame to this frame
+		void add(const NormalizedFrame& data);
+
+		// Get the data stretched to uint8_t
+		void getStretchedData(std::vector<uint16_t>& frame) const;
 
 	public:
 		template<class Archive>
 		void serialize(Archive& ar)
 		{
-			ar(m_frame, m_average, m_min, m_max);
+			ar(m_frame, m_average);
 		}
 
 	private:
+		// The pixel values, offset by subtracting the average value.
 		std::vector<int> m_frame;
-		int m_average;
-		int m_min;
-		int m_max;
 
-		const std::vector<int>& GetNormalizedData() const;
-		int GetAverage() const;
+		// the average pixel value that was subtracted to create the normalized frame.
+		double m_average;
 
+		// the min pixel value
+		//double m_min;
 
+		// the max pixel value
+		//double m_max;
 
 		void serializeToStream(std::ostream& os) const;
 		void deserializeFromStream(std::istream& is);
 	};
 
+	bool WriteImage(const flircam::ImageId&, const NormalizedFrame& frame);
 	bool WriteImage(const flircam::ImageId&, const std::vector<uint16_t>& frame);
 	bool ReadImage(const flircam::ImageId&, std::vector<uint16_t>& frame);
+	bool ReadImage(const flircam::ImageId&, NormalizedFrame& frame);
 	int write_png_file(const char* file_name, std::vector<uint16_t>& frame);
-	bool ReadBaseline(const flircam::ImageId&, std::vector<uint16_t>&baseline);
-	bool ReadBaseline(const flircam::ImageId&, ImageBaseline& baseline);
-	bool WriteBaseline(const flircam::ImageId&, const std::vector<uint16_t>&d);
+	bool ReadBaseline(const flircam::ImageId&, NormalizedFrame& baseline);
+	bool ReadBaseline(const flircam::ImageId&, std::vector<uint16_t>& baseline);
+	bool ReadBaseline(const flircam::ImageId&, ImageStatistics& baseline);
+	bool WriteBaseline(const flircam::ImageId&, const std::vector<uint16_t>& d);
+	bool WriteBaseline(const flircam::ImageId&, const NormalizedFrame& d);
 	bool WriteDetectionMap(const flircam::ImageId&, const std::vector<uint16_t>&d);
 	bool WritePBM(const flircam::ImageId&, const std::vector<uint16_t>&d, const char* ext);
 	bool WritePGM(const flircam::ImageId&, const std::vector<uint16_t>&d, const char* ext);
@@ -191,12 +238,13 @@ namespace ImageUtil
 		}
 	};
 
+	template<class T> 
 	struct stretch
 	{
-		uint16_t min;
-		uint16_t scalar;
+		T min;
+		T scalar;
 
-		uint16_t operator()(uint16_t& pixel) const
+		T operator()(T& pixel) const
 		{
 			pixel = (pixel - min) * scalar;
 		}

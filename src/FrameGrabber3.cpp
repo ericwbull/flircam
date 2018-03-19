@@ -131,114 +131,104 @@ struct CamPub
 };
 
 
-static std::vector<uint16_t> g_flatfield(60*80); // cam.width() * cam.height());
+static ImageUtil::NormalizedFrame g_flatfield; // cam.width() * cam.height());
 
 void SaveImage(const flircam::ImageId::ConstPtr& msg, CamPub& camPub)
 {
-  const flircam::ImageId& imageId = *msg;
-  // If this function runs for more than 10 seconds, then the watchdog will terminate the process.
-  WatchDog watchDog(10);
-  
-  //    LeptonCamera& cam = *camPub.cam;
-  static LePi lePi;
-  static bool first = true;
-  if (first){
-    if (!lePi.OpenConnection())
-    {
-      std::cout << "failed to open connectoin" << std::endl;
-      exit(-1);
-    }
-    first = false;
+	const flircam::ImageId& imageId = *msg;
+	// If this function runs for more than 10 seconds, then the watchdog will terminate the process.
+	WatchDog watchDog(10);
 
-    // Read flatfield from file
-    // This is in case we restarted after a crash
-    flircam::ImageId flatFieldImageId = imageId;
-    flatFieldImageId.frameNumber = 0;
-    ImageUtil::ReadBaseline(flatFieldImageId, g_flatfield);
-  }
+	//    LeptonCamera& cam = *camPub.cam;
+	static LePi lePi;
+	static bool first = true;
+	if (first) {
+		if (!lePi.OpenConnection())
+		{
+			std::cout << "failed to open connectoin" << std::endl;
+			exit(-1);
+		}
+		first = false;
 
-  LeptonType lp_type = lePi.GetType();
-  LeptonCameraConfig lp_config(lp_type);
-  
-    unsigned int frameNum = imageId.frameNumber;
-    if (frameNum == 99)
-      {
-	// Test what happens if gets struck here for a long time.
-	sleep(100);
-      }
-    
-    bool isFlatField = false;
-    if (frameNum == 0)
-    {
-        isFlatField = true;
-    }
+		// Read flatfield from file
+		// This is in case we restarted after a crash
+		flircam::ImageId flatFieldImageId = imageId;
+		flatFieldImageId.frameNumber = 0;
+		ImageUtil::ReadBaseline(flatFieldImageId, g_flatfield);
+	}
 
-    // Define frame
-    static std::vector<uint16_t> frame(60*80); // cam.width() * cam.height());
+	LeptonType lp_type = lePi.GetType();
+	LeptonCameraConfig lp_config(lp_type);
 
-    // If end collection, then tell the camera to shutdown.
-    if (imageId.endCollection)
-      {
-	// Forward to ImageProc.  This is just the end of collectoin message, no image data was saved.
-	flircam::ImageId pubMsg;
-	pubMsg = imageId;
-	camPub.pub.publish(pubMsg);
-      }
-    else
-      {
-	// Stream frames
-	int frame_nb{0};
+	unsigned int frameNum = imageId.frameNumber;
+	if (frameNum == 99)
+	{
+		// Test what happens if gets struck here for a long time.
+		sleep(100);
+	}
 
-	// Frame request
-	lePi.GetFrame(&frame[0], FRAME_U16);
-      }
-    
+	bool isFlatField = false;
+	if (frameNum == 0)
+	{
+		isFlatField = true;
+	}
 
-    if (!isFlatField)
-    {
-        // subtract flat field
-        std::transform(frame.begin(), frame.end(), g_flatfield.begin(), frame.begin(), ImageUtil::truncated_minus());
+	// Define frame
+	static std::vector<uint16_t> frame(60 * 80); // cam.width() * cam.height());
 
-        uint16_t minValue = 0;
-        uint16_t maxValue = 0;
+	// If end collection, then tell the camera to shutdown.
+	if (imageId.endCollection)
+	{
+		// Forward to ImageProc.  This is just the end of collectoin message, no image data was saved.
+		flircam::ImageId pubMsg;
+		pubMsg = imageId;
+		camPub.pub.publish(pubMsg);
+	}
+	else
+	{
+		// Stream frames
+		int frame_nb{ 0 };
 
-        auto iterPairMinMax = std::minmax_element(frame.begin(), frame.end());
-        minValue = *iterPairMinMax.first;
-        maxValue = *iterPairMinMax.second;
+		// Frame request
+		lePi.GetFrame(&frame[0], FRAME_U16);
+	}
 
-        // Output stretched image for inspection
-        std::vector<uint16_t> stretched = frame;
-        ImageUtil::stretch s;
-        s.min = minValue;
-        s.scalar = 65535 / (maxValue - minValue);
-        std::for_each(stretched.begin(), stretched.end(), s);
-        ImageUtil::WritePGM(imageId, stretched, "stretched");
+	ImageUtil::NormalizedFrame nf(frame);
 
-        if (ImageUtil::WriteImage(imageId,frame))
-        {
-            flircam::ImageId pubMsg;
-            pubMsg = imageId;
-            camPub.pub.publish(pubMsg);
-        }
-    }
-    else
-    {
-      // Flatfield
-      auto iterMin = std::min_element(frame.begin(), frame.end());
-        uint16_t minValue = *iterMin;
+	if (!isFlatField)
+	{
+		// subtract flat field
+		nf.add(g_flatfield);
 
-        for (auto& item: frame)
-        {
-            item -= minValue;
-        }
+		// Output stretched image for inspection
+		std::vector<uint16_t> stretched;
+		nf.getStretchedData(stretched);
+		ImageUtil::WritePGM(imageId, stretched, "stretched");
 
-        std::cout << "save flat field minValue=" << minValue <<  std::endl;
-        // Save as flat field
-        g_flatfield = frame;
-	flircam::ImageId flatFieldImageId = imageId;
-	flatFieldImageId.frameNumber = 0;
-	ImageUtil::WriteBaseline(flatFieldImageId, g_flatfield);
-    }
+		if (ImageUtil::WriteImage(imageId, nf))
+		{
+			flircam::ImageId pubMsg;
+			pubMsg = imageId;
+			camPub.pub.publish(pubMsg);
+		}
+	}
+	else
+	{
+		// Flatfield
+		double average = nf.getAverage();
+
+		nf.add(-average);
+		nf.invert();
+
+		std::cout << "save flat field average value=" << average << std::endl;
+
+		// Save as flat field
+		g_flatfield = nf;
+
+		flircam::ImageId flatFieldImageId = imageId;
+		flatFieldImageId.frameNumber = 0;
+		ImageUtil::WriteBaseline(flatFieldImageId, g_flatfield);
+	}
 }
 
 

@@ -41,12 +41,16 @@ while (<STDIN>)
 		next;
 	}
 
+	# translate slashes
+
+	$filename =~ s#/#\\#g;
+
 	if (defined($col))
 	{
-		print "//raspberrypi/$filename($row,$col): $message\n";
+		print "\\\\raspberrypi\\$filename($row,$col): $message\n";
 	}
 	else 
 	{
-		print "//raspberrypi/$filename($row): $message\n";
+		print "\\\\raspberrypi\\$filename($row): $message\n";
 	}
 }

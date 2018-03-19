@@ -210,21 +210,21 @@ void ProcessImage(const flircam::ImageId& imageId)
 	// Create a detection bitmap. Further operations may be performed on the detection bitmap.
 	//
 	// 
-	ImageUtil::ImageBaseline baseline;
+	ImageUtil::ImageStatistics baseline;
 
-	std::vector<uint16_t> image;
+	ImageUtil::NormalizedFrame image;
 	ImageUtil::ReadImage(imageId, image);
 
 	bool first = false;
 	if (false == ImageUtil::ReadBaseline(imageId, baseline))
 	{
 		// Create baseline for the first time.
-		baseline = ImageUtil::ImageBaseline();
+		baseline = ImageUtil::ImageStatistics();
 		first = true;
 	}
 
 	std::vector<double> sigma;
-	baseline.AddImage(image, sigma);
+	baseline.addImage(image.getNormalizedData(), sigma);
 
 	int detectionCount = 0;
 	if (!first)
