@@ -137,7 +137,7 @@ void SaveImage(const flircam::ImageId::ConstPtr& msg, CamPub& camPub)
 {
 	const flircam::ImageId& imageId = *msg;
 	// If this function runs for more than 10 seconds, then the watchdog will terminate the process.
-	WatchDog watchDog(10);
+	//WatchDog watchDog(10);
 
 	//    LeptonCamera& cam = *camPub.cam;
 	static LePi lePi;
@@ -161,9 +161,10 @@ void SaveImage(const flircam::ImageId::ConstPtr& msg, CamPub& camPub)
 	LeptonCameraConfig lp_config(lp_type);
 
 	unsigned int frameNum = imageId.frameNumber;
+	std::cout << "frameNum=" << imageId.frameNumber << std::endl;
 	if (frameNum == 99)
 	{
-		// Test what happens if gets struck here for a long time.
+		// Test what happens if get stuck here for a long time.
 		sleep(100);
 	}
 
@@ -183,6 +184,7 @@ void SaveImage(const flircam::ImageId::ConstPtr& msg, CamPub& camPub)
 		flircam::ImageId pubMsg;
 		pubMsg = imageId;
 		camPub.pub.publish(pubMsg);
+		return;
 	}
 	else
 	{
@@ -197,8 +199,15 @@ void SaveImage(const flircam::ImageId::ConstPtr& msg, CamPub& camPub)
 
 	if (!isFlatField)
 	{
-		// subtract flat field
-		nf.add(g_flatfield);
+		if (g_flatfield.getNormalizedData().size() != frame.size())
+		{
+			std::cout << "No flatfield data" << std::endl;
+		}
+		else
+		{
+			// subtract flat field
+			nf.add(g_flatfield);
+		}
 
 		// Output stretched image for inspection
 		std::vector<uint16_t> stretched;
@@ -214,6 +223,8 @@ void SaveImage(const flircam::ImageId::ConstPtr& msg, CamPub& camPub)
 	}
 	else
 	{
+		std::cout << "Flatfield" << std::endl;
+
 		// Flatfield
 		double average = nf.getAverage();
 

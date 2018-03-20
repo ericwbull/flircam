@@ -243,11 +243,11 @@ namespace ImageUtil
 	struct stretch
 	{
 		T min;
-		T scalar;
+		double scalar;
 
 		T operator()(T& pixel) const
 		{
-			pixel = (pixel - min) * scalar;
+			pixel = static_cast<double>(pixel - min) * scalar;
 		}
 	};
 

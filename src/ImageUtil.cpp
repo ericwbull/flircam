@@ -370,7 +370,7 @@ namespace ImageUtil
 		m_frame.resize(n);
 		int sum = std::accumulate(frame.begin(), frame.end(), 0);
 		m_average = sum / n;
-		std::transform(frame.begin(), frame.end(), m_frame.begin(), std::bind2nd(std::plus<int>(), m_average));
+		std::transform(frame.begin(), frame.end(), m_frame.begin(), std::bind2nd(std::minus<int>(), m_average));
 	}
 
 	double 
@@ -411,7 +411,7 @@ namespace ImageUtil
 		std::vector<int> stretched = m_frame;
 		ImageUtil::stretch<int> s;
 		s.min = minValue;
-		s.scalar = 255 / (maxValue - minValue);
+		s.scalar = 255.0 / static_cast<double>(maxValue - minValue);
 		std::for_each(stretched.begin(), stretched.end(), s);
 
 		std::copy(stretched.begin(), stretched.end(), data.begin());
@@ -432,6 +432,10 @@ namespace ImageUtil
 	bool NormalizedFrame::load(const char* filename)
 	{
 		std::ifstream ifs(filename, std::ios::binary);
+		if (!ifs.is_open())
+		{
+			return false;
+		}
 		deserializeFromStream(ifs);
 		return !ifs.bad();
 	}
@@ -485,6 +489,10 @@ namespace ImageUtil
 	bool ImageStatistics::load(const char* filename)
 	{
 		std::ifstream ifs(filename, std::ios::binary);
+		if (!ifs.is_open())
+		{
+			return false;
+		}
 		deserializeFromStream(ifs);
 		return !ifs.bad();
 	}
