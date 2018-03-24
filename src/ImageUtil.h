@@ -4,6 +4,7 @@
 #include <stdint.h>
 #include <vector>
 #include <functional>
+#include <algorithm>
 #include <flircam/ImageId.h>
 #include <string>
 #include <numeric>
@@ -12,12 +13,13 @@
 
 namespace ImageUtil
 {
+	const double SIGMA_MAX = 100.0;
+	const double SIGMA_MIN = -100.0;
+
 	struct AverageAndVariance
 	{
-		const double SIGMA_MAX = 100.0;
-		const double SIGMA_MIN = -100.0;
-		double m_average = 0;
-		double m_variance = 0;
+		double m_average;
+		double m_variance;
 
 		/// Returns sigma deviation from standard for the given sample,
 		/// and adds the sample to the statistical average and variance.
@@ -29,7 +31,7 @@ namespace ImageUtil
 			double diff0 = sample - m_average;
 			double stdDeviation = sqrt(m_variance);
 
-			double sigma = diff0 / stdDeviation;
+			double sigma;
 			if (stdDeviation != 0)
 			{
 				sigma = diff0 / stdDeviation;
@@ -58,7 +60,7 @@ namespace ImageUtil
 			double diff1 = sample - m_average;
 
 			double sampleVariance = diff0 * diff1;
-			double m_variance = sampleVariance * weight + m_variance * (1 - weight);
+		    m_variance = sampleVariance * weight + m_variance * (1 - weight);
 
 			return sigma;
 		}
@@ -95,6 +97,7 @@ namespace ImageUtil
 			if (m_pixels.size() == 0)
 			{
 				m_pixels.resize(data.size());
+				std::fill(m_pixels.begin(), m_pixels.end(), Pixel());
 			}
 
 			sigma.resize(data.size());
@@ -179,9 +182,19 @@ namespace ImageUtil
 	bool WriteBaseline(const flircam::ImageId&, const std::vector<uint16_t>& d);
 	bool WriteBaseline(const flircam::ImageId&, const NormalizedFrame& d);
 	bool WriteBaseline(const flircam::ImageId&, const ImageStatistics& d);
-	bool WriteDetectionMap(const flircam::ImageId&, const std::vector<uint16_t>&d);
-	bool WritePBM(const flircam::ImageId&, const std::vector<uint16_t>&d, const char* ext);
-	bool WritePGM(const flircam::ImageId&, const std::vector<uint16_t>&d, const char* ext);
+
+	template <typename T>
+	bool WriteDetectionMap(const flircam::ImageId&, const std::vector<T>&d);
+
+	template <typename T>
+	bool WritePBM(const flircam::ImageId&, const std::vector<T>&d, const char* ext);
+
+	template <typename T>
+	bool WritePGM(const flircam::ImageId&, const std::vector<T>&d, const char* ext);
+
+	template <typename T>
+	bool WritePGM8(const flircam::ImageId&, const std::vector<T>&d, const char* ext);
+
 	std::string ImageIdToString(const flircam::ImageId&);
 
 	struct truncated_minus : std::binary_function<uint16_t, uint16_t, uint16_t>
@@ -237,6 +250,51 @@ namespace ImageUtil
 			}
 			return 0;
 		}
+	};
+
+	struct IsGreaterThan : std::unary_function<double, uint8_t>
+	{
+		double m_limit;
+
+		IsGreaterThan(double limit)
+		{
+			m_limit = limit;
+		}
+
+		uint8_t operator()(double d) const
+		{
+			if (d > m_limit) return 1;
+			return 0;
+		}
+	};
+
+	struct LimitScaleOffset : std::unary_function<double,double>
+	{
+		double m_limit;
+		double m_scale;
+		double m_offset;
+
+		double operator()(double d) const
+		{
+			if (d < -m_limit)
+			{
+				d = -m_limit;
+			}
+			if (d > m_limit)
+			{
+				d = m_limit;
+			}
+
+			return d * m_scale + m_offset;
+		}
+
+		LimitScaleOffset(double limit, double scale, double offset)
+		{
+			m_limit = limit;
+			m_scale = scale;
+			m_offset = offset;
+		}
+
 	};
 
 	template<class T> 

@@ -35,10 +35,11 @@ uint8_t  g_neighborMaxValueSpan; // 0 to 2 typical
 uint8_t  g_neighborDetectionSpan; // 0 to 2 typical
 uint8_t  g_neighborDetectionCountThreshold; // 1 to 9 typical
 
-inline bool validateData(const std::vector<uint16_t>& data, int minVal, int maxVal)
+template <class T>
+inline bool validateData(const std::vector<T>& data, int minVal, int maxVal)
 {
 	int i = 0;
-	for (auto d : data)
+	for (T d : data)
 	{
 		if (d > maxVal || d < minVal)
 		{
@@ -50,19 +51,22 @@ inline bool validateData(const std::vector<uint16_t>& data, int minVal, int maxV
 	return true;
 }
 
-inline int getPixel(int x, int y, const std::vector<uint16_t>& data)
+template <typename T>
+inline int getPixel(int x, int y, const std::vector<T>& data)
 {
 	int i = y * 80 + x;
 	return data[i];
 }
 
-inline void setPixel(int x, int y, std::vector<uint16_t>& data, uint16_t value)
+template <typename T>
+inline void setPixel(int x, int y, std::vector<T>& data, T value)
 {
 	int i = y * 80 + x;
 	data[i] = value;
 }
 
-inline int sumAdjacentPixels(int x, int y, int span, const std::vector<uint16_t>& data)
+template <typename T>
+inline int sumAdjacentPixels(int x, int y, int span, const std::vector<T>& data)
 {
 	int sum = 0;
 
@@ -79,40 +83,42 @@ inline int sumAdjacentPixels(int x, int y, int span, const std::vector<uint16_t>
 }
 
 
-inline uint16_t getMaxValueAdjacentPixels(int x, int y, int span, const std::vector<uint16_t>& data)
-{
-	uint16_t maxVal = 0;
-	for (int x1 = -span; x1 <= span; x1++)
-	{
-		if (x + x1 < 0 || x + x1 >= 80) continue;
-		for (int y1 = -span; y1 <= span; y1++)
-		{
-			if (y + y1 < 0 || y + y1 >= 60) continue;
-			uint16_t pixelVal = getPixel(x + x1, y + y1, data);
-			if (maxVal < pixelVal)
-			{
-				maxVal = pixelVal;
-			}
-		}
-	}
-
-	return maxVal;
-}
+//inline uint16_t getMaxValueAdjacentPixels(int x, int y, int span, const std::vector<uint16_t>& data)
+//{
+//	uint16_t maxVal = 0;
+//	for (int x1 = -span; x1 <= span; x1++)
+//	{
+//		if (x + x1 < 0 || x + x1 >= 80) continue;
+//		for (int y1 = -span; y1 <= span; y1++)
+//		{
+//			if (y + y1 < 0 || y + y1 >= 60) continue;
+//			uint16_t pixelVal = getPixel(x + x1, y + y1, data);
+//			if (maxVal < pixelVal)
+//			{
+//				maxVal = pixelVal;
+//			}
+//		}
+//	}
+//
+//	return maxVal;
+//}
 
 // returns detection count
-int DetectChanges(const std::vector<double>& sigma, std::vector<uint16_t>& detectionMap, std::vector<uint16_t>& filteredDetectionMap)
+int DetectChanges(const std::vector<double>& sigma, std::vector<uint8_t>& detectionMap, std::vector<uint8_t>& filteredDetectionMap)
 {
 	// compare and threshold
 	detectionMap.assign(sigma.size(), 0);
 
+	const double DETECTION_SIGMA = 3.8;
+
 	// sigma values more than some threshold flag as detection
-	//    std::transform(sigma.begin(), sigma.end(), baseline.begin(), detectionMap.begin(), ImageUtil::subtract_and_threshold(g_pixelChangeThreshold));
+	std::transform(sigma.begin(), sigma.end(), detectionMap.begin(), ImageUtil::IsGreaterThan(DETECTION_SIGMA));
 
 	// detection map is now an array of 0 or 1.
-	if (false == validateData(detectionMap, 0, 1))
-	{
-		return -1;
-	}
+	//if (false == validateData(detectionMap, 0, 1))
+	//{
+	//	return -1;
+	//}
 
 	// Next filter the detection map based on neighborhood detection count.
 	filteredDetectionMap.assign(sigma.size(), 0);
@@ -124,7 +130,7 @@ int DetectChanges(const std::vector<double>& sigma, std::vector<uint16_t>& detec
 			int sum = sumAdjacentPixels(x, y, g_neighborDetectionSpan, detectionMap);
 			if (sum >= g_neighborDetectionCountThreshold)
 			{
-				setPixel(x, y, filteredDetectionMap, 1);
+				setPixel<uint8_t>(x, y, filteredDetectionMap, 1);
 				detectionPixelCount++;
 			}
 		}
@@ -236,13 +242,20 @@ void ProcessImage(const flircam::ImageId& imageId)
 
 		// Write sigma image to file.
 		// Write detection bitmap to file.
-		std::vector<uint16_t> detectionMap;
-		std::vector<uint16_t> filteredDetectionMap;
+		std::vector<uint8_t> detectionMap;
+		std::vector<uint8_t> filteredDetectionMap;
 		detectionCount = DetectChanges(sigma, detectionMap, filteredDetectionMap);
 
 		// write the detection bitmap to file for inspection.  Detetions may be ignored if baseline sample count is below some threshold.
 		ImageUtil::WritePBM(imageId, detectionMap, "detect");
 		ImageUtil::WritePBM(imageId, filteredDetectionMap, "filteredDetect");
+
+		// Scale the sigma data 100x, cap at absolute value 1000, and shift up by 1000.
+		std::vector<uint16_t> sigmaScaled;
+		sigmaScaled.resize(sigma.size());
+		std::transform(sigma.begin(), sigma.end(), sigmaScaled.begin(), ImageUtil::LimitScaleOffset(10, 100, 1000));
+
+		ImageUtil::WritePGM(imageId, sigmaScaled, "sigma");
 		ImageUtil::WriteDetectionMap(imageId, filteredDetectionMap);
 	}
 

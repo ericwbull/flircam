@@ -19,8 +19,15 @@ namespace ImageUtil
 	const int IMAGE_SIZE_BYTES = IMAGE_SIZE_PIXELS * sizeof(uint16_t);
 
 	bool ReadImageDataFromFile(const char* file_name, std::vector<uint16_t>& frame);
-	bool WriteImageDataToPGMFile(const char* file_name, const std::vector<uint16_t>& frame);
-	bool WriteImageDataToPBMFile(const char* file_name, const std::vector<uint16_t>& frame);
+
+	template<typename T>
+	bool WriteImageDataToPGMFile(const char* file_name, const std::vector<T>& frame);
+
+	template<typename T>
+	bool WriteImageDataToPGM8File(const char* file_name, const std::vector<T>& frame);
+
+	template <typename T>
+	bool WriteImageDataToPBMFile(const char* file_name, const std::vector<T>& frame);
 
 
 	template <typename T>
@@ -115,7 +122,8 @@ namespace ImageUtil
 		return nf.save(GetImageFileName(imageId).c_str());
 	}
 
-	bool WritePGM(const flircam::ImageId& imageId, const std::vector<uint16_t>& d, const char* ext)
+	template <typename T>
+	bool WritePGM(const flircam::ImageId& imageId, const std::vector<T>& d, const char* ext)
 	{
 		std::string imageFileName = GetImageFileName(imageId);
 		imageFileName += ".";
@@ -124,7 +132,20 @@ namespace ImageUtil
 
 		return WriteImageDataToPGMFile(imageFileName.c_str(), d);
 	}
-	bool WritePBM(const flircam::ImageId& imageId, const std::vector<uint16_t>& d, const char* ext)
+
+	template <typename T>
+	bool WritePGM8(const flircam::ImageId& imageId, const std::vector<T>& d, const char* ext)
+	{
+		std::string imageFileName = GetImageFileName(imageId);
+		imageFileName += ".";
+		imageFileName += ext;
+		imageFileName += ".pgm";
+
+		return WriteImageDataToPGM8File(imageFileName.c_str(), d);
+	}
+
+	template <typename T>
+	bool WritePBM(const flircam::ImageId& imageId, const std::vector<T>& d, const char* ext)
 	{
 		std::string imageFileName = GetImageFileName(imageId);
 		imageFileName += ".";
@@ -169,7 +190,8 @@ namespace ImageUtil
 		return baseline.save(GetBaselineFileName(imageId).c_str());
 	}
 
-	bool WriteDetectionMap(const flircam::ImageId& imageId, const std::vector<uint16_t>&d)
+	template <typename T>
+	bool WriteDetectionMap(const flircam::ImageId& imageId, const std::vector<T>&d)
 	{
 		std::vector<uint8_t> bitmap(d.size() / 8);
 		int byteNum = 0;
@@ -214,7 +236,8 @@ namespace ImageUtil
 		return true;
 	}
 
-	bool WriteImageDataToPGMFile(const char* file_name, const std::vector<uint16_t>& frame)
+	template <typename T>
+	bool WriteImageDataToPGMFile(const char* file_name, const std::vector<T>& frame)
 	{
 		std::ofstream ofs(file_name);
 
@@ -225,8 +248,8 @@ namespace ImageUtil
 		}
 
 		auto iterPairMinMax = std::minmax_element(frame.begin(), frame.end());
-		uint16_t minValue = *iterPairMinMax.first;
-		uint16_t maxValue = *iterPairMinMax.second;
+		T minValue = *iterPairMinMax.first;
+		T maxValue = *iterPairMinMax.second;
 
 		ofs << "P2" << std::endl
 			<< "# " << file_name << std::endl
@@ -242,7 +265,39 @@ namespace ImageUtil
 		return true;
 	}
 
-	bool WriteImageDataToPBMFile(const char* file_name, const std::vector<uint16_t>& frame)
+	template <typename T>
+	bool WriteImageDataToPGM8File(const char* file_name, const std::vector<T>& frame)
+	{
+		std::ofstream ofs(file_name);
+
+		if (ofs.fail())
+		{
+			std::cerr << "File open failed '" << file_name << "'" << std::endl;
+			return false;
+		}
+
+		auto iterPairMinMax = std::minmax_element(frame.begin(), frame.end());
+		T minValue = *iterPairMinMax.first;
+		T maxValue = *iterPairMinMax.second;
+		double scalar = static_cast<double>(maxValue - minValue) * 255.0;
+
+		ofs << "P2" << std::endl
+			<< "# " << file_name << std::endl
+			<< "80 60" << std::endl
+			<< std::dec << maxValue - minValue << std::endl
+			<< std::endl;
+
+		for (auto pixel : frame)
+		{
+			unsigned char value = static_cast<double>(pixel - minValue) * scalar;
+			ofs << std::dec << value << std::endl;
+		}
+
+		return true;
+	}
+
+	template <typename T>
+	bool WriteImageDataToPBMFile(const char* file_name, const std::vector<T>& frame)
 	{
 		std::ofstream ofs(file_name);
 
@@ -258,7 +313,7 @@ namespace ImageUtil
 
 		for (auto pixel : frame)
 		{
-			ofs << std::dec << pixel << std::endl;
+			ofs << std::dec << static_cast<int>(pixel) << std::endl;
 		}
 
 		return true;
@@ -503,4 +558,13 @@ namespace ImageUtil
 		serializeToStream(ofs);
 		return !ofs.bad();
 	}
-}
+
+	template bool WriteDetectionMap<uint8_t>(const flircam::ImageId& imageId, const std::vector<uint8_t>&d);
+	template bool WriteDetectionMap<uint16_t>(const flircam::ImageId& imageId, const std::vector<uint16_t>&d);
+	template bool WritePGM8<double>(const flircam::ImageId& imageId, const std::vector<double>& d, const char* ext);
+	template bool WritePGM<uint16_t>(const flircam::ImageId& imageId, const std::vector<uint16_t>& d, const char* ext);
+	template bool WritePBM<uint8_t>(const flircam::ImageId& imageId, const std::vector<uint8_t>& d, const char* ext);
+	template bool WritePBM<uint16_t>(const flircam::ImageId& imageId, const std::vector<uint16_t>& d, const char* ext);
+
+};
+
