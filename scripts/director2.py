@@ -76,7 +76,7 @@ class Director:
                     self.imageCapture.resetFrameDelay()
             
     # redirect the camera to the detection frame, and then each neighboring frame
-    # collection ends when all of the following are conditions are satisfied:
+    # collection ends when all of the following conditions are satisfied:
     # - we have imaged each of the frames at least once
     # - no detection in the last image of each frame
     # - we have completed all requested frames (even if all frames have no detection status, if there are still more frames in the queue,

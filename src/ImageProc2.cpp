@@ -234,6 +234,14 @@ void ProcessImage(const flircam::ImageId& imageId)
 
 	// Write baseline back to file
 	ImageUtil::WriteBaseline(imageId, baseline);
+	std::vector<double> avgImage;
+	baseline.getAverage(avgImage);
+
+	std::vector<double> stddevImage;
+	baseline.getStandardDeviation(stddevImage);
+
+	ImageUtil::WritePGM8(imageId, avgImage, "average");
+	ImageUtil::WritePGM8(imageId, stddevImage, "stdandard_deviation");
 
 	int detectionCount = 0;
 	if (!first)

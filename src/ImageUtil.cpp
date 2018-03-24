@@ -279,17 +279,18 @@ namespace ImageUtil
 		auto iterPairMinMax = std::minmax_element(frame.begin(), frame.end());
 		T minValue = *iterPairMinMax.first;
 		T maxValue = *iterPairMinMax.second;
-		double scalar = static_cast<double>(maxValue - minValue) * 255.0;
+		double scalar = 255.0 / static_cast<double>(maxValue - minValue);
 
 		ofs << "P2" << std::endl
-			<< "# " << file_name << std::endl
+			<< "# " << file_name 
+			<< std::dec << " min: " << (double)minValue << " max: " << (double)maxValue << " scalar: " << scalar << std::endl
 			<< "80 60" << std::endl
-			<< std::dec << maxValue - minValue << std::endl
+			<< std::dec << 255 << std::endl
 			<< std::endl;
 
 		for (auto pixel : frame)
 		{
-			unsigned char value = static_cast<double>(pixel - minValue) * scalar;
+			int value = static_cast<double>(pixel - minValue) * scalar;
 			ofs << std::dec << value << std::endl;
 		}
 
@@ -557,6 +558,28 @@ namespace ImageUtil
 		std::ofstream ofs(filename, std::ios::binary);
 		serializeToStream(ofs);
 		return !ofs.bad();
+	}
+
+	void ImageStatistics::getAverage(std::vector<double>& average) const
+	{
+		average.resize(m_pixels.size());
+		
+		for (int i = 0; i < m_pixels.size(); ++i)
+		{
+			const Pixel& p = m_pixels[i];
+			average[i] = p.m_averageAndVariance.m_average;
+		}
+	}
+
+	void ImageStatistics::getStandardDeviation(std::vector<double>& stddev) const
+	{
+		stddev.resize(m_pixels.size());
+
+		for (int i = 0; i < m_pixels.size(); ++i)
+		{
+			const Pixel& p = m_pixels[i];
+			stddev[i] = sqrt(p.m_averageAndVariance.m_variance);
+		}
 	}
 
 	template bool WriteDetectionMap<uint8_t>(const flircam::ImageId& imageId, const std::vector<uint8_t>&d);

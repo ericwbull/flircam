@@ -118,6 +118,9 @@ namespace ImageUtil
 
 		void serializeToStream(std::ostream& os) const;
 		void deserializeFromStream(std::istream& is);
+
+		void getAverage(std::vector<double>& average) const;
+		void getStandardDeviation(std::vector<double>& stddev) const;
 	};
 
 
