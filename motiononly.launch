@@ -1,0 +1,4 @@
+<launch>
+	<node name="pantilt" pkg="flircam" type="pantilt.py" respawn="true" />
+	<node name="director2" pkg="flircam" type="director2.py" />
+</launch>

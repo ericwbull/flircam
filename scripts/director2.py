@@ -19,7 +19,7 @@ class Director:
     def __init__(self):
         self.count=0
         (imagePositions, rowAngles, colAngles) = self.getPositionList()
-        flatAnglePos = tuple((25,0))
+        flatAnglePos = tuple((23,82))
         servoDelay = 1.5
         cameraDelay = 1.0
         self.safeCountdown = 0

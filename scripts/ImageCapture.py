@@ -344,8 +344,9 @@ class ImageCapture:
         # always return to 0,0 before pointing to flatfield.
         # This is a hack.  The pantilt module should take care of
         #  safely moving to the requested position.
-        self.point(0,0)
+#        self.point(0,0)
+        self.point(self.flatfield.servoH,0)
         time.sleep(5)
         self.pointAndCapture(self.flatfield)
         # always return to 0,0 after pointing to flatfield.
-        self.point(0,0)
+        self.point(self.flatfield.servoH,0)
