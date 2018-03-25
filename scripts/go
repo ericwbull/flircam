@@ -25,6 +25,6 @@ rfkill block 1
 #   /sbin/ifconfig wlan0 down
 #   /sbin/iwconfig wlan0 txpower off
 
-#rfkill block 0
+rfkill block 0
 
 roslaunch flircam flircam.launch &

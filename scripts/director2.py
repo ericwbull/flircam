@@ -20,8 +20,8 @@ class Director:
         self.count=0
         (imagePositions, rowAngles, colAngles) = self.getPositionList()
         flatAnglePos = tuple((25,0))
-        servoDelay = 0.5
-        cameraDelay = 0.5
+        servoDelay = 1.5
+        cameraDelay = 1.0
         self.safeCountdown = 0
         self.imageCapture = ImageCapture.ImageCapture(flatAnglePos, imagePositions, rowAngles, colAngles, servoDelay, cameraDelay)
         
@@ -33,17 +33,22 @@ class Director:
         posList = list()
 
         # Make a list of the image frames and angles
-        colAngles = [h for h in range(-90,91,20)]
-        rowAngles = [v for v in range(-90,-14,15)]
+        # From fence
+#        colAngles = [h for h in range(-90,91,20)]
+#        rowAngles = [v for v in range(-90,-14,15)]
+
+# From house corner
+        colAngles = [h for h in range(-15,82,16)]
+        rowAngles = [v for v in range(-20,-4,15)]
         
         for row in range(len(rowAngles)):
             for col in range(len(colAngles)):
                 # Only one capture pointing straight down, which is row 0
-                if (row==0):
-                    if (col==0):
-                        posList.append(tuple((row,col)))
-                else:
-                    posList.append(tuple((row,col)))
+#                if (row==0):
+#                    if (col==0):
+#                        posList.append(tuple((row,col)))
+#                else:
+                posList.append(tuple((row,col)))
 
         return tuple((posList, rowAngles, colAngles))
                                
@@ -51,8 +56,9 @@ class Director:
 #        time.sleep(60)
         while not rospy.is_shutdown():
 #            time.sleep(120)
+            time.sleep(5)
             # set to start processing near the flatfield position
-            self.imageCapture.setNextFrame(46)
+            self.imageCapture.setNextFrame(14)
             self.imageCapture.requestAll()
             # start the image capture thread going and wait for it to finish
             # while waiting, the rospy subscriber may give imageCapture more requests
